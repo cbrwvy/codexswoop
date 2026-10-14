@@ -24,6 +24,7 @@ final class ProfileManager: ObservableObject {
     @Published private(set) var profiles: [AccountProfile] = []
     @Published private(set) var isBusy = false
     @Published private(set) var needsOpeningReview = false
+    @Published var menuMaximumHeight: CGFloat = 560
     @Published private(set) var openingReviewResolved = false
     @Published private(set) var openingMode: AccountOpeningMode?
     @Published private(set) var storageReady = false
@@ -209,11 +210,16 @@ final class ProfileManager: ObservableObject {
             storageReady = false
             show(error)
         }
-        do { needsOpeningReview = try await coordinator.refreshOpeningRecovery() }
+        do {
+            needsOpeningReview = try await coordinator.refreshOpeningRecovery()
+            if needsOpeningReview && openingReviewErrorProvider == nil {
+                openingReviewErrorProvider = { L10n.text("review.pendingDetail") }
+            }
+        }
         catch SwitchingError.busy { show(SwitchingError.busy) }
         catch {
             needsOpeningReview = true
-            openingReviewErrorProvider = { L10n.text("review.journalDetail") }
+            openingReviewErrorProvider = { (error as? OpeningJournalError)?.errorDescription ?? L10n.text("review.journalDetail") }
         }
         refreshDetection()
         refreshLoginStatus()
@@ -488,7 +494,11 @@ final class ProfileManager: ObservableObject {
             needsOpeningReview = false; openingReviewErrorProvider = nil; errorMessage = nil; offerManagedSignIn = false
             openingReviewResolved = await coordinator.openingRecoveryResolution == .safeForNewOperation
             connectionNotice = L10n.text("review.resolved")
-        } catch { show(error) }
+        } catch {
+            show(error)
+            // Keep the exact failed proof after dismissing unrelated form messages.
+            openingReviewErrorProvider = lastErrorProvider
+        }
     }
 
     private func update(_ operation: () async throws -> ProfileCatalog) async -> Bool {
@@ -511,7 +521,7 @@ final class ProfileManager: ObservableObject {
     }
 
     func show(_ error: Error) {
-        if error is OpeningJournalError { needsOpeningReview = true; openingReviewErrorProvider = { L10n.text("review.journalDetail") } }
+        if error is OpeningJournalError { needsOpeningReview = true; openingReviewErrorProvider = { (error as? OpeningJournalError)?.errorDescription ?? L10n.text("review.journalDetail") } }
         lastErrorProvider = {
             if let description = (error as? ProfileError)?.errorDescription { return description }
             if let description = (error as? EnvironmentError)?.errorDescription { return description }

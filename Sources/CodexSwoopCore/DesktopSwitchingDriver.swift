@@ -644,7 +644,7 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
         guard openingToken == nil, environmentPlan == nil, pidPlan == nil else { throw AccountOpeningError.busy }
         let record = try openingJournal.acquireRecovery(expectedOperation: observedRecoveryID)
         defer { openingJournal.abandon() }
-        guard record.bootSession == (try bootSessionProvider()) else { throw AccountOpeningError.recoveryRequired }
+        guard record.bootSession == (try bootSessionProvider()) else { throw AccountOpeningError.recoveryBootChanged }
         guard try await system.openingBuildFingerprint() == record.buildFingerprint else { throw EnvironmentError.incompatibleBuild }
         let scope = try await recoveredScope(record)
         try await validateRecoveryCatalogs(scope)

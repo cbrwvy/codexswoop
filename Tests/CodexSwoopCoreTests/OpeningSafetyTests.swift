@@ -207,7 +207,7 @@ final class OpeningSafetyTests: XCTestCase {
         await f.system.removeSyntheticInstance(f.associations[1].environmentID)
         let recovered = restartedCoordinator(f); _ = try await recovered.refreshOpeningRecovery()
         do { try await recovered.reconcileOpeningRecovery(); XCTFail("New boot cleared warning") }
-        catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryRequired) }
+        catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryBootChanged) }
         XCTAssertNotNil(try journal.pending())
     }
     func testInvalidAndFutureJournalRemainBlockedAndUnmodified() async throws {
@@ -302,7 +302,7 @@ final class OpeningSafetyTests: XCTestCase {
                 DesktopInstance(main: changedMain, related: [changedMain, changedChild], nativeLaunchDate: original.nativeLaunchDate))
             let recovered = restartedCoordinator(f); _ = try await recovered.refreshOpeningRecovery()
             do { try await recovered.reconcileOpeningRecovery(); XCTFail("Same-second replacement accepted") }
-            catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryRequired) }
+            catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryTargetChanged) }
             XCTAssertNotNil(try journal.pending())
         }
     }

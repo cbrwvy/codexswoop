@@ -4,7 +4,15 @@ import Foundation
 
 public enum OpeningJournalError: Error, LocalizedError, Sendable {
     case invalid, unavailable, busy, conflict, legacyUninitialized
-    public var errorDescription: String? { L10n.text("review.journalDetail") }
+    public var errorDescription: String? {
+        switch self {
+        case .invalid: L10n.text("review.journalInvalid")
+        case .unavailable: L10n.text("review.journalUnavailable")
+        case .busy: L10n.text("review.journalBusy")
+        case .conflict: L10n.text("review.journalConflict")
+        case .legacyUninitialized: L10n.text("review.journalLegacy")
+        }
+    }
 }
 
 /// Evidence only. Never deserialize a capability, profile name, authorization or launch arguments.

@@ -13,9 +13,52 @@ struct MenuBarView: View {
     @FocusState private var focused: FocusTarget?
     @ViewState<[FocusTarget: Int]> private var menuActivations: [FocusTarget: Int] = [:]
     private struct Editor: Identifiable { let id = UUID(); let profile: AccountProfile? }
-    init(manager: ProfileManager) { self.manager = manager }
+    private let maximumHeight: CGFloat?
+    init(manager: ProfileManager, maximumHeight: CGFloat? = nil) {
+        self.manager = manager; self.maximumHeight = maximumHeight
+    }
+    private var heightLimit: CGFloat { maximumHeight ?? manager.menuMaximumHeight }
 
     var body: some View {
+        ViewThatFits(in: .vertical) {
+            menuContent.padding(16).frame(width: 320).fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                menuContent.padding(16).frame(width: 320).fixedSize(horizontal: false, vertical: true)
+            }
+        }.frame(width: 320).frame(maxHeight: heightLimit).fixedSize(horizontal: false, vertical: true)
+        .onAppear { restoreFocus() }
+        .onChange(of: manager.storageReady) { _, _ in restoreFocus() }
+        .onChange(of: manager.isBusy) { _, busy in if !busy { restoreFocus() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSPopover.didShowNotification)) { _ in
+            focused = nil
+            Task { @MainActor in await Task.yield(); restoreFocus() }
+        }
+        .onChange(of: manager.profiles) { _, profiles in
+            switch focused {
+            case let .profile(id), let .manage(id): if !profiles.contains(where: { $0.id == id }) { restoreFocus() }
+            case nil: restoreFocus()
+            default: break
+            }
+        }
+        .sheet(item: $editor, onDismiss: restoreFocus) { ProfileEditor(manager: manager, profile: $0.profile) }
+        .sheet(item: $connectionProfile, onDismiss: restoreFocus) { ConnectionEditor(manager: manager, profile: $0) }
+        .alert(L10n.text("visual.title"), isPresented: Binding(get: { pendingManualVerification != nil }, set: { if !$0 { pendingManualVerification = nil } })) {
+            Button(L10n.text("common.cancel"), role: .cancel) { pendingManualVerification = nil }
+            Button(L10n.text("visual.confirm")) {
+                if let profile = pendingManualVerification { manager.manuallyConfirmAccount(profile) }
+                pendingManualVerification = nil
+            }
+        } message: { Text(L10n.text("visual.detail")) }
+        .alert(L10n.text("disconnect.title"), isPresented: Binding(get: { pendingDisconnect != nil }, set: { if !$0 { pendingDisconnect = nil } })) {
+            Button(L10n.text("common.cancel"), role: .cancel) { pendingDisconnect = nil }
+            Button(L10n.text("disconnect.confirm")) {
+                if let profile = pendingDisconnect { Task { await manager.disconnect(profile) } }
+                pendingDisconnect = nil
+            }
+        } message: { Text(L10n.text("disconnect.detail")) }
+    }
+
+    private var menuContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("CodexSwoop").font(.headline)
@@ -88,7 +131,7 @@ struct MenuBarView: View {
                 }.frame(height: min(manager.profiles.reduce(CGFloat.zero) { height, profile in
                     height + (manager.usageState(for: profile).snapshot != nil ? 190 :
                         (manager.connectionErrors.contains(profile.id) || manager.association(for: profile) == nil ? 66 : 46))
-                }, 280))
+                }, min(280, heightLimit * 0.45)))
             }
             Button { editor = Editor(profile: nil) } label: { Label(L10n.text("menu.add"), systemImage: "plus") }
                 .buttonStyle(.bordered).keyboardShortcut("n").disabled(!manager.storageReady || manager.isBusy)
@@ -121,7 +164,7 @@ struct MenuBarView: View {
             }
             Divider()
             HStack {
-                Label(L10n.text(manager.codexAvailability == .verified ? "menu.detected" : (manager.installation == nil ? "menu.notFound" : "onboarding.codex.statusUnverified")), systemImage: manager.codexAvailability == .verified ? "checkmark.circle" : "questionmark.circle")
+                Label(L10n.text(manager.codexAvailability == .verified ? "menu.detected" : (manager.installation == nil ? "menu.notFound" : "onboarding.codex.statusUnverified")) + (manager.installation.map { " · " + $0.version } ?? ""), systemImage: manager.codexAvailability == .verified ? "checkmark.circle" : "questionmark.circle")
                     .font(.caption2).foregroundStyle(.secondary)
                 Spacer()
                 Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
@@ -130,37 +173,7 @@ struct MenuBarView: View {
                     .onKeyPress(.space) { NSApplication.shared.terminate(nil); return .handled }
             }
             if manager.isTestStorage { Text(L10n.text("menu.qa")).font(.caption2).foregroundStyle(.secondary) }
-        }.padding(16).frame(width: 320)
-        .onAppear { restoreFocus() }
-        .onChange(of: manager.storageReady) { _, _ in restoreFocus() }
-        .onChange(of: manager.isBusy) { _, busy in if !busy { restoreFocus() } }
-        .onReceive(NotificationCenter.default.publisher(for: NSPopover.didShowNotification)) { _ in
-            focused = nil
-            Task { @MainActor in await Task.yield(); restoreFocus() }
         }
-        .onChange(of: manager.profiles) { _, profiles in
-            switch focused {
-            case let .profile(id), let .manage(id): if !profiles.contains(where: { $0.id == id }) { restoreFocus() }
-            case nil: restoreFocus()
-            default: break
-            }
-        }
-        .sheet(item: $editor, onDismiss: restoreFocus) { ProfileEditor(manager: manager, profile: $0.profile) }
-        .sheet(item: $connectionProfile, onDismiss: restoreFocus) { ConnectionEditor(manager: manager, profile: $0) }
-        .alert(L10n.text("visual.title"), isPresented: Binding(get: { pendingManualVerification != nil }, set: { if !$0 { pendingManualVerification = nil } })) {
-            Button(L10n.text("common.cancel"), role: .cancel) { pendingManualVerification = nil }
-            Button(L10n.text("visual.confirm")) {
-                if let profile = pendingManualVerification { manager.manuallyConfirmAccount(profile) }
-                pendingManualVerification = nil
-            }
-        } message: { Text(L10n.text("visual.detail")) }
-        .alert(L10n.text("disconnect.title"), isPresented: Binding(get: { pendingDisconnect != nil }, set: { if !$0 { pendingDisconnect = nil } })) {
-            Button(L10n.text("common.cancel"), role: .cancel) { pendingDisconnect = nil }
-            Button(L10n.text("disconnect.confirm")) {
-                if let profile = pendingDisconnect { Task { await manager.disconnect(profile) } }
-                pendingDisconnect = nil
-            }
-        } message: { Text(L10n.text("disconnect.detail")) }
     }
 
     private func activateMenu(_ target: FocusTarget) { menuActivations[target, default: 0] += 1 }

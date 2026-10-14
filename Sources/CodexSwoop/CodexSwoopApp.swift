@@ -68,7 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private let manager: ProfileManager
-    private lazy var popoverAnchor = StatusPopoverAnchor(popover: popover) { [weak self] in self?.statusItem?.button }
+    private lazy var popoverAnchor = StatusPopoverAnchor(popover: popover,
+        maximumHeightChanged: { [weak self] in self?.manager.menuMaximumHeight = $0 },
+        currentButton: { [weak self] in self?.statusItem?.button })
     private lazy var settingsController = SettingsWindowController(manager: manager)
 
     init(manager: ProfileManager) { self.manager = manager; super.init() }
@@ -175,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
     private let popover: NSPopover
     private let currentButton: () -> NSView?
+    private let maximumHeightChanged: (CGFloat) -> Void
     private weak var observedButton: NSView?
     private weak var observedWindow: NSWindow?
     private var observers: [NSObjectProtocol] = []
@@ -182,8 +185,10 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
     private var previousFrameNotifications = false
     private var previousBoundsNotifications = false
 
-    init(popover: NSPopover, currentButton: @escaping () -> NSView?) {
+    init(popover: NSPopover, maximumHeightChanged: @escaping (CGFloat) -> Void = { _ in },
+         currentButton: @escaping () -> NSView?) {
         self.popover = popover; self.currentButton = currentButton
+        self.maximumHeightChanged = maximumHeightChanged
         super.init()
         popover.delegate = self
     }
@@ -192,6 +197,7 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         guard let button = currentButton(), let window = button.window,
               window.isVisible, !button.isHiddenOrHasHiddenAncestor, !button.bounds.isEmpty else { return false }
         observe(button, window: window)
+        updateMaximumHeight(button, window: window)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         return popover.isShown
     }
@@ -207,6 +213,7 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         let events: [(Notification.Name, AnyObject?)] = [
             (NSView.frameDidChangeNotification, button), (NSView.boundsDidChangeNotification, button),
             (NSWindow.didMoveNotification, window), (NSWindow.didResizeNotification, window),
+            (NSWindow.didChangeBackingPropertiesNotification, window),
             (NSWindow.didChangeScreenNotification, window), (NSWindow.willCloseNotification, window),
             (NSWindow.didChangeOcclusionStateNotification, window),
             (NSApplication.didChangeScreenParametersNotification, nil)
@@ -238,8 +245,16 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
             return
         }
         observe(button, window: window)
+        updateMaximumHeight(button, window: window)
         // On an already visible popover this updates its anchor; it does not reopen it.
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
+    private func updateMaximumHeight(_ button: NSView, window: NSWindow) {
+        guard let screen = window.screen else { return }
+        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        maximumHeightChanged(MenuPopoverGeometry.maximumContentHeight(anchor: anchor, visibleFrame: screen.visibleFrame))
+        // Let SwiftUI publish its new fitting size before reasserting the native anchor.
     }
 
     func popoverDidClose(_ notification: Notification) { stopObserving() }
@@ -334,5 +349,13 @@ extension NativeSwitchingConfirmation {
         AccountSetupConfirmationUI(title: L10n.text("message.6ac8869344"), detail: detail,
             button: L10n.text("message.b9c00fd9e0"), additionalConsent: !primaryNames.isEmpty,
             consentTitle: L10n.text("message.1c0410c771", primaryNames.joined(separator: ", ")))
+    }
+}
+
+/// Reserve space for AppKit's arrow/chrome. Native positioning remains tied to the status button.
+enum MenuPopoverGeometry {
+    static func maximumContentHeight(anchor: NSRect, visibleFrame: NSRect) -> CGFloat {
+        let below = min(anchor.minY, visibleFrame.maxY) - visibleFrame.minY
+        return max(1, min(560, visibleFrame.height - 40, below - 40))
     }
 }

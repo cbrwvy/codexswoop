@@ -7,7 +7,7 @@
 <key>CFBundleExecutable</key><string>CodexSwoop</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.0.0</string>
-<key>CFBundleVersion</key><string>5</string>
+<key>CFBundleVersion</key><string>6</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>ru</string><string>uz-Latn</string></array>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>

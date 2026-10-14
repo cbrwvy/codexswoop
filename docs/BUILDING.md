@@ -1,6 +1,6 @@
 # Building CodexSwoop
 
-The Swift package and shared Xcode project/scheme are the build authorities. The application is **1.0.0 (build 5)**, Swift language mode 6, deployment target **macOS 14.0**. The experimental distribution is **Apple Silicon arm64 only**. Building another architecture does not establish supported runtime compatibility.
+The Swift package and shared Xcode project/scheme are the build authorities. The application is **1.0.0 (build 6)**, Swift language mode 6, deployment target **macOS 14.0**. The experimental distribution is **Apple Silicon arm64 only**. Building another architecture does not establish supported runtime compatibility.
 
 No account credentials, official Codex launch or installation is needed to compile or run the automated suites. Use disposable fixtures for tests; do not point test storage at real account data.
 
