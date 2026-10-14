@@ -509,10 +509,13 @@ final class ProfileManager: ObservableObject {
     func show(_ error: Error) {
         if error is OpeningJournalError { needsOpeningReview = true; openingReviewErrorProvider = { L10n.text("review.journalDetail") } }
         lastErrorProvider = {
-            (error as? ProfileError)?.errorDescription ?? (error as? EnvironmentError)?.errorDescription
-                ?? (error as? SwitchingError)?.errorDescription ?? (error as? AccountSetupError)?.errorDescription
-                ?? (error as? OpeningJournalError)?.errorDescription
-                ?? (error as? AccountOpeningError)?.errorDescription ?? L10n.text("message.944d592a28")
+            if let description = (error as? ProfileError)?.errorDescription { return description }
+            if let description = (error as? EnvironmentError)?.errorDescription { return description }
+            if let description = (error as? SwitchingError)?.errorDescription { return description }
+            if let description = (error as? AccountSetupError)?.errorDescription { return description }
+            if let description = (error as? OpeningJournalError)?.errorDescription { return description }
+            if let description = (error as? AccountOpeningError)?.errorDescription { return description }
+            return L10n.text("message.944d592a28")
         }
         errorMessage = lastErrorProvider?()
     }
