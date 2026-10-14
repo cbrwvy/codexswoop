@@ -321,7 +321,9 @@ extension CoreChecks {
         }
         await run("Driver: launch specification preserves original UUID roots and contains no shell or credentials") {
             let f = try await AssociationFixture.make(root("arguments")), value = f.associations[1], spec = try DesktopLaunchSpecification(association: value)
-            try expect(spec.arguments.contains("CODEX_HOME=" + value.codexHome) && spec.arguments.contains("CODEX_ELECTRON_USER_DATA_PATH=" + value.electronData), "Both roots passed explicitly")
+            let paths = DesktopLaunchPaths(association: value)
+            try expect(spec.arguments.contains("CODEX_HOME=" + paths.home) && spec.arguments.contains("CODEX_ELECTRON_USER_DATA_PATH=" + paths.electron), "Both roots passed explicitly through identity-bound short paths")
+            try expect((paths.home + "/ipc/ipc.sock").utf8.count < 104, "Darwin socket path budget")
             try expect(spec.arguments.first == "-n" && spec.environment == ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"], "Single Launch Services request, clean launcher environment")
         }
         await run("Driver: one synthetic target launch reaches verified active without touching metadata") {

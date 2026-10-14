@@ -68,7 +68,7 @@ final class ProfileManager: ObservableObject {
         guard let installation, !LastTestedCodexBuild.matches(installation) else { return nil }
         return L10n.text("onboarding.codex.untested", installation.version)
     }
-    var friendlyError: String { L10n.text(needsOpeningReview ? "review.previousOperation" : "onboarding.actionFailed") }
+    var friendlyError: String { errorMessage ?? L10n.text(needsOpeningReview ? "review.previousOperation" : "onboarding.actionFailed") }
 
     @Published private(set) var associations: [EnvironmentAssociation] = [] {
         didSet { usage.synchronize(associations) }
@@ -213,7 +213,8 @@ final class ProfileManager: ObservableObject {
         do {
             needsOpeningReview = try await coordinator.refreshOpeningRecovery()
             if needsOpeningReview && openingReviewErrorProvider == nil {
-                openingReviewErrorProvider = { L10n.text("review.pendingDetail") }
+                if let failure = await coordinator.lastError { openingReviewErrorProvider = { failure.errorDescription ?? L10n.text("review.pendingDetail") } }
+                else { openingReviewErrorProvider = { L10n.text("review.pendingDetail") } }
             }
         }
         catch SwitchingError.busy { show(SwitchingError.busy) }

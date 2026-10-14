@@ -81,10 +81,11 @@ public struct DesktopLaunchSpecification: Equatable, Sendable {
     public init(association: EnvironmentAssociation, allowStandardExternal: Bool = false) throws {
         guard association.kind != .standardExternal || allowStandardExternal else { throw EnvironmentError.releaseGateClosed }
         self.association = association
-        arguments = ["-n", "-g", "--env", "CODEX_HOME=" + association.codexHome,
-                     "--env", "CODEX_ELECTRON_USER_DATA_PATH=" + association.electronData,
+        let paths = DesktopLaunchPaths(association: association)
+        arguments = ["-n", "-g", "--env", "CODEX_HOME=" + paths.home,
+                     "--env", "CODEX_ELECTRON_USER_DATA_PATH=" + paths.electron,
                      "--env", "PATH=/usr/bin:/bin", "--env", "LANG=en_US.UTF-8",
-                     "/Applications/ChatGPT.app", "--args", "--user-data-dir=" + association.electronData]
+                     "/Applications/ChatGPT.app", "--args", "--user-data-dir=" + paths.electron]
         environment = ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"]
         let base = URL(fileURLWithPath: association.codexHome).deletingLastPathComponent()
         workingDirectory = association.isTemporary ? base.deletingLastPathComponent().deletingLastPathComponent() : base
@@ -96,6 +97,10 @@ public protocol DesktopSystem: Sendable {
     func authorizeEnvironmentOperation(_ scope: EnvironmentOperationScope, allowPrimary: Bool) async throws
     func activateScopedEnvironment(_ scope: EnvironmentOperationScope, instance: DesktopInstance) async throws
     func launchScopedEnvironment(_ scope: EnvironmentOperationScope) async throws -> DesktopInstance
+    func launchScopedEnvironment(_ scope: EnvironmentOperationScope,
+        recordReceiver: @Sendable (DesktopInstance) throws -> Void) async throws -> DesktopInstance
+    func confirmPersistedEnvironmentOperationSettled(_ scope: EnvironmentOperationScope,
+        effects: [EnvironmentSubmittedEffect], launchReceiver: DesktopInstance?, inventoryAssociations: [EnvironmentAssociation]) async throws
     func quitScopedEnvironment(_ scope: EnvironmentOperationScope, item: DesktopInventoryEntry) async throws
     func waitForScopedExit(_ scope: EnvironmentOperationScope, item: DesktopInventoryEntry) async throws
     func finishEnvironmentOperation(_ id: UUID) async
@@ -262,7 +267,10 @@ public actor DesktopSwitchingDriver: AccountSwitchingDriver {
             guard !launchSubmitted, let scope = operationScope, scope.target.profileID == profile.id else { throw AccountOpeningError.processChanged }
             try await recordOpeningEffect(.launch)
             launchSubmitted = true
-            launched = try await system.launchScopedEnvironment(scope)
+            let journal = openingJournal
+            launched = try await system.launchScopedEnvironment(scope, recordReceiver: {
+                try journal.captureLaunchReceiver($0, operation: scope.id)
+            })
             try await recordOpeningEffect(.activation(launched!))
             activationSubmitted = true
             try await system.activateScopedEnvironment(scope, instance: launched!)
@@ -634,6 +642,10 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
         if let pending = try openingJournal.pending() { observedRecoveryID = pending.id }
         return observedRecoveryID != nil
     }
+    public func persistOpeningFailure(_ error: SwitchingError) throws {
+        if let journalID { try openingJournal.recordFailure(OpeningFailureRecord(error), operation: journalID) }
+    }
+    public func restoredOpeningFailure() throws -> SwitchingError? { try openingJournal.pending()?.failure?.error }
     public func completeOpeningJournal() async throws {
         if let journalID {
             guard try await system.openingBuildFingerprint() == journalBuild else { throw EnvironmentError.incompatibleBuild }
@@ -649,7 +661,7 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
         let scope = try await recoveredScope(record)
         try await validateRecoveryCatalogs(scope)
         let retained = try await store.inspectRetainedResearchEnvironments()
-        try await system.confirmPersistedEnvironmentOperationSettled(scope, effects: record.effects,
+        try await system.confirmPersistedEnvironmentOperationSettled(scope, effects: record.effects, launchReceiver: record.launchReceiver,
             inventoryAssociations: scope.associations.associations + retained)
         try await validateRecoveryCatalogs(scope)
         guard try await store.inspectRetainedResearchEnvironments() == retained else { throw EnvironmentOpeningError.stalePlan }

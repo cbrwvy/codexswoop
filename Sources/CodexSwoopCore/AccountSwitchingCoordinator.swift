@@ -55,10 +55,14 @@ public protocol AccountSwitchingDriver: Sendable {
     func finishOpening(_ plan: AccountOpeningPlan, success: Bool) async
     func restoreOpeningRecovery() async throws -> Bool
     func completeOpeningJournal() async throws
+    func persistOpeningFailure(_ error: SwitchingError) async throws
+    func restoredOpeningFailure() async throws -> SwitchingError?
 }
 public extension AccountSwitchingDriver {
     func restoreOpeningRecovery() async throws -> Bool { false }
     func completeOpeningJournal() async throws {}
+    func persistOpeningFailure(_ error: SwitchingError) async throws {}
+    func restoredOpeningFailure() async throws -> SwitchingError? { nil }
     func strategy() async throws -> AccountSwitchingStrategy { .restart }
     func activate(profile: AccountProfile) async throws { throw EnvironmentError.activationUnavailable }
 }
@@ -213,6 +217,7 @@ extension AccountSwitchingCoordinator {
         do {
             if try await driver?.restoreOpeningRecovery() == true {
                 environmentRecoveryRequired = true; state = .recoveryRequired; openingRecoveryResolution = nil
+                if let restored = try await driver?.restoredOpeningFailure() { lastError = restored }
                 if openingDisposition == nil { openingDisposition = .recoveryRequired }
             }
         } catch OpeningJournalError.busy {
@@ -478,6 +483,8 @@ extension AccountSwitchingCoordinator {
                 // Preserve the precise cause in lastError; expose partial state separately from success.
                 openingResult = nil
             } else { state = failure == .opening(.userCancelled) ? .cancelled : .failed }
+            do { try await driver.persistOpeningFailure(failure) }
+            catch { lastError = failure } // A failed diagnostic write never clears pending or hides its cause.
             if let plan { await driver.finishOpening(plan, success: false) }
             if (try? await driver.restoreOpeningRecovery()) != false {
                 environmentRecoveryRequired = true; state = .recoveryRequired

@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import Darwin
 @testable import CodexSwoopCore
 
@@ -9,7 +10,179 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
     }
 }
 
+@MainActor final class P0LaunchTests: XCTestCase {
+    private func fixture(running: Bool = false) async throws -> ReleaseFixture {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-p0-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return try await ReleaseFixture.make(root: root, running: running)
+    }
+    private func aliasRoot(_ fixture: ReleaseFixture) -> URL {
+        let root = URL(fileURLWithPath: "/private/tmp/csp0-" + UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return root
+    }
+    func testShortAliasesBindActualDarwinSocketWithoutMovingEnvironment() async throws {
+        let f = try await fixture(), association = f.associations[1]
+        let before = try await f.store.inspectAccountSetup()
+        let paths = DesktopLaunchPaths(association: association, base: aliasRoot(f))
+        try paths.prepare(validator: f.validator); try paths.prepare(validator: f.validator)
+        XCTAssertEqual(URL(fileURLWithPath: paths.home).resolvingSymlinksInPath().path, URL(fileURLWithPath: association.codexHome).resolvingSymlinksInPath().path)
+        let directory = paths.home + "/ipc"
+        XCTAssertEqual(mkdir(directory, 0o700), 0)
+        let name = directory + "/ipc.sock"
+        XCTAssertLessThan(name.utf8.count, 104)
+        var address = sockaddr_un(); address.sun_family = sa_family_t(AF_UNIX)
+        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            name.utf8CString.withUnsafeBytes { buffer.copyBytes(from: $0) }
+        }
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0); XCTAssertGreaterThanOrEqual(fd, 0)
+        defer { close(fd) }
+        let result = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        XCTAssertEqual(result, 0)
+        let after = try await f.store.inspectAccountSetup()
+        XCTAssertEqual(after, before)
+        try f.validator.revalidate(association)
+    }
+    func testAliasRedirectionAndWritableParentFailClosed() async throws {
+        let f = try await fixture()
+        let paths = DesktopLaunchPaths(association: f.associations[1], base: aliasRoot(f))
+        try paths.prepare(validator: f.validator)
+        XCTAssertEqual(unlink(paths.home), 0)
+        XCTAssertEqual(symlink(f.associations[0].codexHome, paths.home), 0)
+        XCTAssertThrowsError(try paths.prepare(validator: f.validator))
+        XCTAssertEqual(unlink(paths.home), 0)
+        XCTAssertEqual(symlink(f.associations[1].codexHome, paths.home), 0)
+        XCTAssertEqual(chmod(URL(fileURLWithPath: paths.home).deletingLastPathComponent().deletingLastPathComponent().path, 0o777), 0)
+        XCTAssertThrowsError(try paths.validate(validator: f.validator))
+    }
+    func testOwnershipUsesGUIElectronAndItsDirectBackendHome() throws {
+        let main = ReleaseDesktopSystem.instance(1).main, backend = ReleaseDesktopSystem.instance(2).main
+        let rows = [DesktopProcessEvidence(generation: main, parent: 1, role: .main, electronDescriptors: 2),
+                    DesktopProcessEvidence(generation: backend, parent: main.pid, role: .backend, homeDescriptors: 1)]
+        XCTAssertEqual(try DesktopOwnership.resolve(before: rows, after: rows, standard: false).count, 1)
+        for bad in [Array(rows.prefix(1)), [rows[0], DesktopProcessEvidence(generation: backend, parent: 99, role: .backend, homeDescriptors: 1)],
+                    [DesktopProcessEvidence(generation: main, parent: 1, role: .main, homeDescriptors: 1), rows[1]]] {
+            XCTAssertThrowsError(try DesktopOwnership.resolve(before: bad, after: bad, standard: false))
+        }
+    }
+    func testReadinessCannotSubstituteAnotherLaunchServicesReceiver() async throws {
+        let receiver = ReleaseDesktopSystem.instance(1), replacement = ReleaseDesktopSystem.instance(2)
+        do {
+            _ = try await DesktopReadiness.wait(expectedReceiver: receiver) { _ in
+                DesktopObservation(matching: [replacement], ambiguous: false)
+            }
+            XCTFail("Replacement generation accepted")
+        } catch { XCTAssertEqual(error as? EnvironmentError, .processChanged) }
+    }
+    func testNativeReadinessPreservesBackendOwnershipAndExitCauses() async throws {
+        for cause in [EnvironmentError.backendNotReady, .ambiguousInstance, .launchedProcessExited] {
+            do {
+                _ = try await DesktopReadiness.wait(timeout: .milliseconds(10), interval: .milliseconds(1), preserveReason: true) { _ in throw cause }
+                XCTFail("Missing readiness accepted")
+            } catch { XCTAssertEqual(error as? EnvironmentError, cause == .ambiguousInstance ? .ownershipUnconfirmed : cause) }
+        }
+    }
+    func testLaunchReceiverAndFailureSurviveCoordinatorRestart() async throws {
+        let f = try await fixture()
+        await f.system.configure(activation: true)
+        do { try await f.open(); XCTFail("Activation failure accepted") } catch {}
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        let record = try XCTUnwrap(journal.pending())
+        XCTAssertNotNil(record.launchReceiver)
+        XCTAssertEqual(record.failure?.reason, .activation)
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let restarted = AccountSwitchingCoordinator(driver: driver)
+        let pending = try await restarted.refreshOpeningRecovery(), failure = await restarted.lastError
+        XCTAssertTrue(pending); XCTAssertEqual(failure, .activationFailed)
+        let before = await f.system.effects
+        try await restarted.reconcileOpeningRecovery()
+        XCTAssertNil(try journal.pending())
+        let after = await f.system.effects
+        XCTAssertEqual(after, before, "Recovery performs no process effect")
+    }
+    func testLaunchServicesErrorAndProcessExitDiagnosticsRoundTripWithoutRawPayloads() throws {
+        for error in [SwitchingError.environment(.launchServicesFailed(-10810)), .environment(.launchedProcessExited), .environment(.backendNotReady)] {
+            let record = OpeningFailureRecord(error), data = try JSONEncoder().encode(record)
+            XCTAssertEqual(try JSONDecoder().decode(OpeningFailureRecord.self, from: data).error, error)
+            XCTAssertLessThan(data.count, 100)
+        }
+    }
+    func testRestartRefusesAReplacementForTheRecordedLaunchReceiver() async throws {
+        let f = try await fixture()
+        await f.system.configure(activation: true)
+        do { try await f.open() } catch {}
+        await f.system.replace(f.associations[1])
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let restarted = AccountSwitchingCoordinator(driver: driver)
+        _ = try await restarted.refreshOpeningRecovery()
+        do { try await restarted.reconcileOpeningRecovery(); XCTFail("Replacement settled old launch") }
+        catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryTargetChanged) }
+        XCTAssertNotNil(try OpeningOperationJournal(root: f.validator.managedRoot).pending())
+    }
+    func testLaunchServicesReturnsExactSyntheticReceiverAndPassesBothRoots() async throws {
+        let f = try await fixture(), paths = DesktopLaunchPaths(association: f.associations[1], base: aliasRoot(f))
+        try paths.prepare(validator: f.validator)
+        let app = f.root.appendingPathComponent("Probe.app"), contents = app.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        let source = f.root.appendingPathComponent("probe.swift")
+        try """
+        import AppKit
+        let home = ProcessInfo.processInfo.environment["CODEX_HOME"]!
+        let electron = ProcessInfo.processInfo.environment["CODEX_ELECTRON_USER_DATA_PATH"]!
+        let match = ProcessInfo.processInfo.arguments.contains("--user-data-dir=" + electron)
+        let result = ["home": home, "electron": electron, "argumentMatches": String(match)]
+        try! JSONSerialization.data(withJSONObject: result).write(to: URL(fileURLWithPath: home).appendingPathComponent("probe-result.json"))
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { NSApplication.shared.terminate(nil) }
+        NSApplication.shared.run()
+        """.write(to: source, atomically: true, encoding: .utf8)
+        let compiler = Process(); compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        compiler.arguments = ["swiftc", source.path, "-o", contents.appendingPathComponent("MacOS/Probe").path]
+        try compiler.run(); compiler.waitUntilExit(); XCTAssertEqual(compiler.terminationStatus, 0)
+        let info: [String: Any] = ["CFBundleIdentifier": "test.codexswoop.probe." + UUID().uuidString,
+            "CFBundleExecutable": "Probe", "CFBundleName": "Synthetic Launch Probe", "CFBundlePackageType": "APPL", "LSUIElement": true]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+        let receiver = try await NativeDesktopSystem.launchApplication(app, paths: paths, environment: ["PATH": "/usr/bin:/bin"])
+        XCTAssertGreaterThan(receiver.0, 0)
+        let native = try XCTUnwrap(NSRunningApplication(processIdentifier: receiver.0))
+        XCTAssertEqual(native.bundleURL?.path, app.path); XCTAssertEqual(native.launchDate, receiver.1)
+        let data = try Data(contentsOf: URL(fileURLWithPath: paths.home).appendingPathComponent("probe-result.json"))
+        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+        XCTAssertEqual(result["home"], paths.home); XCTAssertEqual(result["electron"], paths.electron)
+        XCTAssertEqual(result["argumentMatches"], "true")
+        // The disposable probe exits itself; the adapter never sends terminate or kill.
+        try await Task.sleep(for: .seconds(2.2))
+        XCTAssertTrue(native.isTerminated)
+    }
+    func testLaunchServicesFailureKeepsConcreteErrorCode() async throws {
+        let f = try await fixture()
+        do {
+            _ = try await NativeDesktopSystem.launchApplication(f.root.appendingPathComponent("Missing.app"),
+                paths: DesktopLaunchPaths(association: f.associations[1]), environment: [:])
+            XCTFail("Missing application launched")
+        } catch let error as EnvironmentError {
+            guard case .launchServicesFailed(let code) = error else { return XCTFail("Error detail lost") }
+            XCTAssertNotEqual(code, 0)
+        }
+    }
+}
+
 @MainActor final class ReadinessTests: XCTestCase {
+    func testManagedLaunchHomeFitsDarwinUnixSocketPath() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-socket-regression-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let f = try await ReleaseFixture.make(root: root)
+        let specification = try DesktopLaunchSpecification(association: f.associations[1])
+        let home = try XCTUnwrap(specification.arguments.first { $0.hasPrefix("CODEX_HOME=") })
+            .dropFirst("CODEX_HOME=".count)
+        XCTAssertLessThan((String(home) + "/ipc/ipc.sock").utf8.count, 104,
+            "Darwin sockaddr_un.sun_path cannot hold the original managed profile path")
+    }
     func testPersistentPreparationRetainsLegacyUUIDAndDoesNotBind() async throws {
         let root = URL(fileURLWithPath: "/private/tmp/codexswoop-xctest-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

@@ -30,6 +30,8 @@ public struct PendingOpeningOperation: Codable, Equatable, Sendable {
     public let targetInstance: DesktopInstance?
     public let others: [Receiver]
     public var effects: [EnvironmentSubmittedEffect]
+    public var launchReceiver: DesktopInstance? = nil
+    public var failure: OpeningFailureRecord? = nil
 
     public init(scope: EnvironmentOperationScope, bootSession: String, buildFingerprint: OpeningBuildFingerprint) throws {
         id = scope.id; mode = scope.mode; self.bootSession = bootSession; self.buildFingerprint = buildFingerprint
@@ -84,6 +86,16 @@ public struct PendingOpeningOperation: Codable, Equatable, Sendable {
             case .unknown: throw OpeningJournalError.invalid
             }
         }
+        if let launchReceiver {
+            _ = try DesktopObservation(matching: [launchReceiver], ambiguous: false).unique()
+            guard launched, targetInstance == nil,
+                  !others.flatMap({ $0.instance.related }).contains(where: { $0.pid == launchReceiver.main.pid }),
+                  !activated || effects.contains(where: {
+                      if case .activation(let value) = $0 { return value.main == launchReceiver.main && value.nativeLaunchDate == launchReceiver.nativeLaunchDate }
+                      return false
+                  }) else { throw OpeningJournalError.invalid }
+        }
+        try failure?.validate()
     }
     private struct DesktopInstanceKey: Hashable {
         let main: DesktopGeneration
@@ -227,6 +239,23 @@ public final class OpeningOperationJournal: @unchecked Sendable {
         try metadataLock {
             guard var record = try Self.readLocked(root: root), record.id == operation else { throw OpeningJournalError.conflict }
             record.effects.append(effect); try record.validate(); try save(record)
+        }
+    }
+    public func captureLaunchReceiver(_ instance: DesktopInstance, operation: UUID) throws {
+        try update(operation) { record in
+            guard record.launchReceiver == nil else { throw OpeningJournalError.conflict }
+            record.launchReceiver = instance
+        }
+    }
+    public func recordFailure(_ failure: OpeningFailureRecord, operation: UUID) throws {
+        try update(operation) { $0.failure = failure }
+    }
+    private func update(_ operation: UUID, change: (inout PendingOpeningOperation) throws -> Void) throws {
+        mutex.lock(); defer { mutex.unlock() }
+        guard lease >= 0, ownedID == operation else { throw OpeningJournalError.conflict }
+        try metadataLock {
+            guard var record = try Self.readLocked(root: root), record.id == operation else { throw OpeningJournalError.conflict }
+            try change(&record); try record.validate(); try save(record)
         }
     }
     /// Acquire a fresh exclusive lease before any read-only reconciliation. A live owner blocks it.

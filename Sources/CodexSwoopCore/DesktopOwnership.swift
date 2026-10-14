@@ -47,7 +47,10 @@ public enum DesktopOwnership {
         for main in before where main.role == .main {
             let members = lineage(old, main.generation.pid)
             guard members.contains(where: { old[$0].map(uses) ?? false }) else { continue }
-            guard main.homeDescriptors > 0, main.electronDescriptors > 0,
+            // The GUI owns Electron storage; its direct backend owns CODEX_HOME. The GUI
+            // need not retain a home FD after a short read or a failed IPC socket bind.
+            // Both roots still require positive descriptors in one stable, exclusive lineage.
+            guard main.electronDescriptors > 0,
                   before.contains(where: { $0.parent == main.generation.pid && $0.role == .backend && $0.homeDescriptors > 0 }),
                   members.allSatisfy({ pid in
                       guard let row = old[pid] else { return false }

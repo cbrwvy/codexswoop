@@ -3,6 +3,14 @@ import Foundation
 /// Reconciles submitted requests with fresh strict ownership evidence, never account identity.
 /// This proof authorizes no effect; a subsequent manual choice still needs a new plan and consent.
 public enum EnvironmentRecoveryProof {
+    public static func validateLaunchReceiver(_ receiver: DesktopInstance?, target: EnvironmentAssociation,
+        inventory: DesktopInstanceInventory) throws {
+        guard let receiver else { return }
+        try inventory.validate()
+        guard let owned = inventory.entries.first(where: { $0.association == target })?.instance,
+              owned.main == receiver.main, owned.nativeLaunchDate == receiver.nativeLaunchDate,
+              owned.signingIdentity == receiver.signingIdentity else { throw AccountOpeningError.recoveryTargetChanged }
+    }
     public static func validate(scope: EnvironmentOperationScope, effects: [EnvironmentSubmittedEffect],
         inventory: DesktopInstanceInventory, livePIDs: Set<Int32>, launcherRunning: Bool) throws {
         try inventory.validate()

@@ -10,6 +10,22 @@ public struct DesktopProcessMetadata: Equatable, Sendable {
     public let pid: Int32, parent: Int32, uid: UInt32
     public let started: String, executable: String
 
+    /// Capture one LaunchServices receiver without waiting for unrelated processes to stabilize.
+    static func read(_ pid: Int32) throws -> Self {
+        var info = proc_bsdinfo()
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) == MemoryLayout<proc_bsdinfo>.size else {
+            throw EnvironmentError.launchedProcessExited
+        }
+        var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { throw EnvironmentError.processChanged }
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian); formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE MMM d HH:mm:ss yyyy"
+        return Self(pid: pid, parent: Int32(info.pbi_ppid), uid: info.pbi_uid,
+            started: formatter.string(from: Date(timeIntervalSince1970: Double(info.pbi_start_tvsec))),
+            executable: String(decoding: path.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self))
+    }
+
     public static func parse(_ line: String) throws -> Self {
         let parts = line.split(maxSplits: 8, omittingEmptySubsequences: true,
                                whereSeparator: { $0 == " " || $0 == "\t" })
@@ -69,7 +85,8 @@ public actor NativeDesktopSystem: DesktopSystem {
     private var validatedInstallation: InstallationValidationSnapshot?
     private var validatedBuild: OpeningBuildFingerprint?
     private let dispatchLedger = EnvironmentDispatchLedger()
-    private var submittedLauncher: (id: UUID, process: Process)?
+    private var launchesInFlight = Set<UUID>()
+    private var launchReceivers: [UUID: DesktopInstance] = [:]
     public init(validator: EnvironmentValidator = EnvironmentValidator(), pidActivationScope: PIDActivationScope? = nil) {
         self.validator = validator; self.pidActivationScope = pidActivationScope
     }
@@ -267,14 +284,15 @@ public actor NativeDesktopSystem: DesktopSystem {
         var counts = Dictionary(uniqueKeysWithValues: pids.map { ($0, Counts()) })
         let defaults = [validator.userHome.appendingPathComponent(".codex").path,
                         validator.userHome.appendingPathComponent("Library/Application Support/Codex").path]
+        let aliases = try DesktopLaunchPaths(association: association).existing(validator: validator)
         var current: Int32?
         for line in result.output.split(separator: "\n") {
             if line.first == "p" { current = Int32(line.dropFirst()) }
             else if line.first == "n", let pid = current, counts[pid] != nil {
                 let name = String(line.dropFirst())
                 func matches(_ path: String) -> Bool { name == path || EnvironmentValidator.beneath(name, path) }
-                if matches(association.codexHome) { counts[pid]!.home += 1 }
-                else if matches(association.electronData) { counts[pid]!.electron += 1 }
+                if matches(association.codexHome) || aliases.map({ matches($0.home) }) == true { counts[pid]!.home += 1 }
+                else if matches(association.electronData) || aliases.map({ matches($0.electron) }) == true { counts[pid]!.electron += 1 }
                 else if defaults.contains(where: matches) { counts[pid]!.defaults += 1 }
             }
         }
@@ -300,7 +318,15 @@ public actor NativeDesktopSystem: DesktopSystem {
             }
         }
         let beforeEvidence = normalized(before), afterEvidence = normalized(after)
-        let candidates = try DesktopOwnership.resolve(before: beforeEvidence, after: afterEvidence, standard: association.kind == .standardExternal)
+        let candidates: [[DesktopGeneration]]
+        do { candidates = try DesktopOwnership.resolve(before: beforeEvidence, after: afterEvidence, standard: association.kind == .standardExternal) }
+        catch EnvironmentError.ambiguousInstance {
+            if beforeEvidence.contains(where: { main in
+                main.role == .main && main.electronDescriptors > 0
+                    && !beforeEvidence.contains(where: { $0.parent == main.generation.pid && $0.role == .backend && $0.homeDescriptors > 0 })
+            }) { throw EnvironmentError.backendNotReady }
+            throw EnvironmentError.ambiguousInstance
+        }
         var matched: [DesktopInstance] = []
         for members in candidates {
             guard let main = members.first(where: { before[$0.pid]?.main == true }) else { throw EnvironmentError.ambiguousInstance }
@@ -432,31 +458,61 @@ public actor NativeDesktopSystem: DesktopSystem {
     public func launch(_ specification: DesktopLaunchSpecification) async throws {
         guard lifecycleAllowed else { throw EnvironmentError.releaseGateClosed }
         guard try DesktopLaunchSpecification(association: specification.association, allowStandardExternal: standardLifecycleAllowed) == specification else { throw EnvironmentError.invalidPath }
-        try await dispatchLaunch(specification)
+        _ = try await dispatchLaunch(specification)
     }
-    private func dispatchLaunch(_ specification: DesktopLaunchSpecification, scope: EnvironmentOperationScope? = nil) async throws {
+    private func dispatchLaunch(_ specification: DesktopLaunchSpecification, scope: EnvironmentOperationScope? = nil) async throws -> DesktopInstance {
         try validator.revalidate(specification.association)
         try await validateInstallation()
         guard try await observe(specification.association).unique() == nil else { throw EnvironmentError.ambiguousInstance }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = specification.arguments; process.environment = specification.environment
-        process.currentDirectoryURL = specification.workingDirectory
-        process.standardInput = FileHandle.nullDevice; process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        let paths = DesktopLaunchPaths(association: specification.association)
+        try paths.prepare(validator: validator)
+        let previous = await Self.nativeMainPIDs()
         if let scope { try await checkDispatchCatalogs(scope) }
         try validator.revalidate(specification.association)
         try Task.checkCancellation()
         if let scope {
-            submittedLauncher = (scope.id, process)
             dispatchLedger.mark(scope.id, effect: .launch)
         }
-        try process.run()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
-        while process.isRunning && ContinuousClock.now < deadline {
-            try Task.checkCancellation(); try await Task.sleep(for: .milliseconds(50))
+        // The LaunchServices completion returns the actual receiver. An `open` exit status
+        // only acknowledges delivery and cannot identify which GUI generation received it.
+        if let scope { launchesInFlight.insert(scope.id) }
+        defer { if let scope { launchesInFlight.remove(scope.id) } }
+        let receiver: (Int32, Date) = try await Self.launchApplication(app, paths: paths, environment: specification.environment)
+        guard !previous.contains(receiver.0) else { throw EnvironmentError.processChanged }
+        try paths.validate(validator: validator)
+        let metadata = try DesktopProcessMetadata.read(receiver.0)
+        guard metadata.executable == app.path + "/Contents/MacOS/ChatGPT", metadata.uid == getuid() else { throw EnvironmentError.processChanged }
+        let generation = try metadata.preciseGeneration()
+        let instance = DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.1,
+            signingIdentity: try Self.validateLiveSignature(receiver.0))
+        guard await Self.receiverIsRunning(instance) else { throw EnvironmentError.launchedProcessExited }
+        if let scope { launchReceivers[scope.id] = instance }
+        return instance
+    }
+    @MainActor static func launchApplication(_ app: URL, paths: DesktopLaunchPaths,
+        environment: [String: String]) async throws -> (Int32, Date) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.activates = false
+        configuration.allowsRunningApplicationSubstitution = false
+        configuration.promptsUserIfNeeded = false
+        configuration.addsToRecentItems = false
+        configuration.arguments = ["--user-data-dir=" + paths.electron]
+        configuration.environment = environment.merging(["CODEX_HOME": paths.home,
+            "CODEX_ELECTRON_USER_DATA_PATH": paths.electron]) { _, new in new }
+        return try await withCheckedThrowingContinuation { continuation in
+            let completion = NativeLaunchCompletion(continuation)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                completion.finish(.failure(EnvironmentError.launchServicesFailed(-1001)))
+            }
+            NSWorkspace.shared.openApplication(at: app, configuration: configuration) { running, error in
+                guard error == nil, let running, !running.isTerminated, let date = running.launchDate else {
+                    completion.finish(.failure(EnvironmentError.launchServicesFailed((error as NSError?)?.code ?? -1)))
+                    return
+                }
+                completion.finish(.success((running.processIdentifier, date)))
+            }
         }
-        guard !process.isRunning, process.terminationStatus == 0 else { throw EnvironmentError.launchFailed }
-        // Request delivery only. Driver separately verifies roots, generation and identity.
     }
 
     public func instanceInventory(associations: [EnvironmentAssociation]) async throws -> DesktopInstanceInventory {
@@ -603,19 +659,31 @@ public actor NativeDesktopSystem: DesktopSystem {
         try await dispatchPIDActivation(scope.target, instance: instance, scope: scope)
     }
     public func launchScopedEnvironment(_ scope: EnvironmentOperationScope) async throws -> DesktopInstance {
+        try await launchScopedEnvironment(scope, recordReceiver: { _ in })
+    }
+    public func launchScopedEnvironment(_ scope: EnvironmentOperationScope,
+        recordReceiver: @Sendable (DesktopInstance) throws -> Void) async throws -> DesktopInstance {
         try await recheckScope(scope)
         guard !scopeLaunched, scope.targetInstance == nil,
               scope.mode == .openSeparately || scopeClosed.count == scope.others.count else { throw EnvironmentOpeningError.stalePlan }
         let specification = try DesktopLaunchSpecification(association: scope.target, allowStandardExternal: true)
         scopeLaunched = true
-        try await dispatchLaunch(specification, scope: scope)
-        let instance = try await DesktopReadiness.wait { timeout in
-            try await self.observe(scope.target, timeout: timeout)
+        let receiver = try await dispatchLaunch(specification, scope: scope)
+        try recordReceiver(receiver) // Durable before waiting for backend/root ownership.
+        let instance = try await DesktopReadiness.wait(expectedReceiver: receiver, preserveReason: true) { timeout in
+            guard await Self.receiverIsRunning(receiver) else { throw EnvironmentError.launchedProcessExited }
+            return try await self.observe(scope.target, timeout: timeout)
         }
         guard operationScope == scope else { throw EnvironmentOpeningError.stalePlan }
         try await checkScopeMetadata(scope)
         scopeLaunchedInstance = instance
         return instance
+    }
+    @MainActor private static func receiverIsRunning(_ receiver: DesktopInstance) -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: receiver.main.pid) else { return false }
+        return !app.isTerminated && app.launchDate == receiver.nativeLaunchDate
+            && app.bundleIdentifier == CodexBundleInspector.bundleIdentifier
+            && app.executableURL?.path == OfficialCodexPolicy.path + "/Contents/MacOS/ChatGPT"
     }
 
     public func quitScopedEnvironment(_ scope: EnvironmentOperationScope, item: DesktopInventoryEntry) async throws {
@@ -638,8 +706,8 @@ public actor NativeDesktopSystem: DesktopSystem {
     public func confirmEnvironmentOperationSettled(_ scope: EnvironmentOperationScope, inventoryAssociations: [EnvironmentAssociation]) async throws {
         guard operationScope == nil else { throw AccountOpeningError.busy }
         let effects = dispatchLedger.effects(for: scope.id)
-        let launcherRunning = effects.contains(.launch)
-            && (submittedLauncher?.id != scope.id || submittedLauncher?.process.isRunning != false)
+        let launcherRunning = launchesInFlight.contains(scope.id)
+            || (effects.contains(.launch) && launchReceivers[scope.id] == nil)
         try await validateInstallation()
         for association in [scope.target] + scope.others.map(\.association) { try validator.revalidate(association) }
         let first = try await environmentInstanceInventory(associations: inventoryAssociations)
@@ -663,28 +731,35 @@ public actor NativeDesktopSystem: DesktopSystem {
     /// Restored journal data is observation evidence only; never assign it to operationScope.
     public func confirmPersistedEnvironmentOperationSettled(_ scope: EnvironmentOperationScope,
         effects: [EnvironmentSubmittedEffect], inventoryAssociations: [EnvironmentAssociation]) async throws {
+        try await confirmPersistedEnvironmentOperationSettled(scope, effects: effects,
+            launchReceiver: nil, inventoryAssociations: inventoryAssociations)
+    }
+    public func confirmPersistedEnvironmentOperationSettled(_ scope: EnvironmentOperationScope,
+        effects: [EnvironmentSubmittedEffect], launchReceiver: DesktopInstance?, inventoryAssociations: [EnvironmentAssociation]) async throws {
         guard operationScope == nil else { throw AccountOpeningError.busy }
-        let captured = scope.others.map(\.instance) + (scope.targetInstance.map { [$0] } ?? [])
+        let captured = scope.others.map(\.instance) + (scope.targetInstance.map { [$0] } ?? []) + (launchReceiver.map { [$0] } ?? [])
             + effects.compactMap { effect -> DesktopInstance? in
                 if case let .activation(instance) = effect { return instance }; return nil
             }
         guard captured.flatMap(\.related).allSatisfy({ $0.startTimeMicroseconds != nil }) else { throw AccountOpeningError.recoveryRequired }
         // A launcher handle is lost on restart. Without a captured owned result, dispatch may
         // still be pending; presence of some target or disappearance of old processes is insufficient.
-        if effects.contains(.launch), submittedLauncher?.id != scope.id,
+        if effects.contains(.launch), launchReceiver == nil,
            !effects.contains(where: { if case .activation = $0 { return true }; return false }) {
             throw AccountOpeningError.recoveryRequired
         }
-        if submittedLauncher?.id == scope.id, submittedLauncher?.process.isRunning == true {
+        if launchesInFlight.contains(scope.id) {
             throw AccountOpeningError.recoveryRequired
         }
         try await validateInstallation()
         for association in inventoryAssociations { try validator.revalidate(association) }
         let first = try await environmentInstanceInventory(associations: inventoryAssociations)
+        try EnvironmentRecoveryProof.validateLaunchReceiver(launchReceiver, target: scope.target, inventory: first)
         try EnvironmentRecoveryProof.validate(scope: scope, effects: effects, inventory: first,
             livePIDs: Set(try await inventory().keys), launcherRunning: false)
         let second = try await environmentInstanceInventory(associations: inventoryAssociations)
         guard first.entries == second.entries, first.unknownCount == second.unknownCount else { throw EnvironmentError.processChanged }
+        try EnvironmentRecoveryProof.validateLaunchReceiver(launchReceiver, target: scope.target, inventory: second)
         try EnvironmentRecoveryProof.validate(scope: scope, effects: effects, inventory: second,
             livePIDs: Set(try await inventory().keys), launcherRunning: false)
         try Task.checkCancellation()
@@ -730,6 +805,16 @@ public actor NativeDesktopSystem: DesktopSystem {
         pipe.fileHandleForReading.readabilityHandler = nil
         buffer.finish(pipe.fileHandleForReading)
         return (process.terminationStatus, try buffer.text())
+    }
+}
+
+private final class NativeLaunchCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<(Int32, Date), any Error>?
+    init(_ continuation: CheckedContinuation<(Int32, Date), any Error>) { self.continuation = continuation }
+    func finish(_ result: Result<(Int32, Date), any Error>) {
+        lock.lock(); let current = continuation; continuation = nil; lock.unlock()
+        current?.resume(with: result)
     }
 }
 

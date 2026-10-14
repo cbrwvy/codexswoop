@@ -188,9 +188,10 @@ extension CoreChecks {
             try await open(f); try await open(f)
             try expect(await f.system.effects == ["launch", "pidActivate", "pidActivate"], "One launch only")
             let specs = await f.system.scopedLaunchSpecifications
-            try expect(specs.count == 1 && specs[0].arguments.contains("CODEX_HOME=" + f.association.codexHome)
-                && specs[0].arguments.contains("CODEX_ELECTRON_USER_DATA_PATH=" + f.association.electronData)
-                && specs[0].arguments.contains("--user-data-dir=" + f.association.electronData), "Paired roots")
+            let paths = DesktopLaunchPaths(association: f.association)
+            try expect(specs.count == 1 && specs[0].arguments.contains("CODEX_HOME=" + paths.home)
+                && specs[0].arguments.contains("CODEX_ELECTRON_USER_DATA_PATH=" + paths.electron)
+                && specs[0].arguments.contains("--user-data-dir=" + paths.electron), "Paired identity-bound launch roots")
             try expect(specs[0].environment == ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"], "No inherited credentials/environment")
         }
         await scenario("launch closed Standard External; preserve Work") { f in

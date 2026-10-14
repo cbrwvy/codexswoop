@@ -1959,5 +1959,30 @@
     "en": "The recorded opening belongs to another Mac boot session. Process disappearance does not prove the historical result. Preserve the journal and agree a separate recovery procedure.",
     "ru": "Записанное открытие относится к другой загрузочной сессии Mac. Исчезновение процессов не доказывает исторический результат. Сохраните журнал и отдельно согласуйте процедуру восстановления.",
     "uz-Latn": "Yozilgan ochish boshqa Mac yuklanish seansiga tegishli. Jarayonlar yo‘qligi oldingi natijani isbotlamaydi. Jurnalni saqlang va alohida tiklash tartibini kelishing."
+  },
+  "launch.pathTooLong": {
+    "en": "The launch path exceeds the macOS local socket limit. No launch was sent.",
+    "ru": "Путь запуска превышает лимит локального socket macOS. Запрос запуска не отправлен.",
+    "uz-Latn": "Ishga tushirish yo‘li macOS lokal soket limitidan uzun. So‘rov yuborilmadi."
+  },
+  "launch.servicesFailed": {
+    "en": "LaunchServices failed (code %@). The opening remains pending until its outcome is verified.",
+    "ru": "Ошибка LaunchServices (код %@). Операция остаётся pending до проверки результата.",
+    "uz-Latn": "LaunchServices xatosi (kod %@). Natija tekshirilmaguncha amal pending holatida qoladi."
+  },
+  "launch.processExited": {
+    "en": "The launched GUI process exited before readiness was confirmed.",
+    "ru": "Запущенный GUI-процесс завершился до подтверждения готовности.",
+    "uz-Latn": "GUI jarayoni tayyorligi tasdiqlanmasdan tugadi."
+  },
+  "launch.backendNotReady": {
+    "en": "The GUI appeared, but its backend did not become ready within the deadline.",
+    "ru": "GUI появился, но его backend не стал готов в отведённое время.",
+    "uz-Latn": "GUI paydo bo‘ldi, ammo backend belgilangan vaqtda tayyor bo‘lmadi."
+  },
+  "launch.ownershipUnconfirmed": {
+    "en": "The GUI appeared, but ownership of both environment directories could not be confirmed.",
+    "ru": "GUI появился, но принадлежность обоих каталогов окружения не подтверждена.",
+    "uz-Latn": "GUI paydo bo‘ldi, ammo ikkala muhit katalogiga egalik tasdiqlanmadi."
   }
 }

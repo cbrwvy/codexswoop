@@ -28,6 +28,7 @@ public enum EnvironmentError: Error, LocalizedError, Equatable, Sendable {
     case invalidPath, missingDirectory, unsafeDirectory, changedDirectory, duplicateAssociation
     case missingAssociation, profileLinked, invalidMetadata, unsupportedSchema, identityUnverified, incompatibleBuild, ambiguousInstance
     case readinessTimedOut, processChanged, launchFailed, recoveryRequired, releaseGateClosed, environmentPrepared
+    case launchPathTooLong, launchServicesFailed(Int), launchedProcessExited, backendNotReady, ownershipUnconfirmed
     case codexNotInstalled, authenticationRequired, accountMismatch, verificationError, keychainUncertain, activationUnavailable, missingPermissions
     public var errorDescription: String? {
         switch self {
@@ -46,6 +47,11 @@ public enum EnvironmentError: Error, LocalizedError, Equatable, Sendable {
         case .processChanged: L10n.text("message.193149e5c0")
         case .readinessTimedOut: L10n.text("message.b41732cbc9")
         case .launchFailed: L10n.text("message.314e6d47e7")
+        case .launchPathTooLong: L10n.text("launch.pathTooLong")
+        case .launchServicesFailed(let code): L10n.text("launch.servicesFailed", code)
+        case .launchedProcessExited: L10n.text("launch.processExited")
+        case .backendNotReady: L10n.text("launch.backendNotReady")
+        case .ownershipUnconfirmed: L10n.text("launch.ownershipUnconfirmed")
         case .recoveryRequired: L10n.text("message.30d80dc546")
         case .releaseGateClosed: L10n.text("message.93e95e0c73")
         case .environmentPrepared: L10n.text("message.0d7cf20cc5")

@@ -64,6 +64,20 @@ public extension DesktopSystem {
     func authorizeEnvironmentOperation(_ scope: EnvironmentOperationScope, allowPrimary: Bool) async throws { throw EnvironmentOpeningError.unavailable }
     func activateScopedEnvironment(_ scope: EnvironmentOperationScope, instance: DesktopInstance) async throws { throw EnvironmentOpeningError.unavailable }
     func launchScopedEnvironment(_ scope: EnvironmentOperationScope) async throws -> DesktopInstance { throw EnvironmentOpeningError.unavailable }
+    func launchScopedEnvironment(_ scope: EnvironmentOperationScope,
+        recordReceiver: @Sendable (DesktopInstance) throws -> Void) async throws -> DesktopInstance {
+        let instance = try await launchScopedEnvironment(scope)
+        try recordReceiver(instance)
+        return instance
+    }
+    func confirmPersistedEnvironmentOperationSettled(_ scope: EnvironmentOperationScope,
+        effects: [EnvironmentSubmittedEffect], launchReceiver: DesktopInstance?, inventoryAssociations: [EnvironmentAssociation]) async throws {
+        try await confirmPersistedEnvironmentOperationSettled(scope, effects: effects, inventoryAssociations: inventoryAssociations)
+        if launchReceiver != nil {
+            try await EnvironmentRecoveryProof.validateLaunchReceiver(launchReceiver, target: scope.target,
+                inventory: environmentInstanceInventory(associations: inventoryAssociations))
+        }
+    }
     func quitScopedEnvironment(_ scope: EnvironmentOperationScope, item: DesktopInventoryEntry) async throws { throw EnvironmentOpeningError.unavailable }
     func waitForScopedExit(_ scope: EnvironmentOperationScope, item: DesktopInventoryEntry) async throws { throw EnvironmentOpeningError.unavailable }
     func finishEnvironmentOperation(_ id: UUID) async {}
