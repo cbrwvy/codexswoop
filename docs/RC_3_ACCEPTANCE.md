@@ -53,9 +53,10 @@ Only RC 2 version/storage/native observations above have been performed on the r
 installation. Candidate installed UI and multi-display behavior are **NOT YET VERIFIED**.
 Synthetic rendering/bounds evidence is recorded separately in RC_3_VALIDATION.md.
 
-## Separately authorized metadata recovery proposal
+## Separately authorized metadata recovery
 
-This is a concrete proposal, **not performed** and not a declaration of prior success.
+The one-shot implementation and synthetic tests are described in [P0_RECOVERY.md](P0_RECOVERY.md).
+Real application is **not performed** and is not a declaration of prior success.
 A normal Check Again must remain blocked when the exact recorded receiver is gone.
 
 1. Obtain explicit consent to archive this unresolved opening and establish a new
@@ -79,9 +80,8 @@ A normal Check Again must remain blocked when the exact recorded receiver is gon
    identities to remain unchanged. Verify the new pair and archive before restarting
    only Swoop. An interrupted or inconsistent transition must fail closed.
 
-The app has no generic reset or history-discarding control. This transition is held
-for a separate explicit authorization and reviewed implementation; no migration
-or replay is part of this PR. If authorization is not given, retain the installed
+The app has no generic reset or history-discarding control. The implementation is included in this PR; real application is held
+for separate explicit authorization. No real migration or replay is performed. If authorization is not given, retain the installed
 store and pending journal unchanged.
 
 ## Part B: real lifecycle operations

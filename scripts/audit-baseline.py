@@ -16,7 +16,7 @@ TEXT_SUFFIXES = {".md", ".swift", ".py", ".sh", ".json", ".svg", ".plist", ".pbx
 RUNTIME_NAMES = {"auth.json", "profiles.json", "profiles.backup.json", "environments.json",
                  "environments.backup.json", "managed-environments.json", "managed-environments.backup.json",
                  "retained-environments.json", "retained-environments.backup.json", "setup-journal.json", "opening-journal.json", "opening-journal-watermark.json", "opening-operation.lock", "metadata.lock"}
-PRIVATE_PARTS = {"Profiles", "SetupBackups", "private-reports", "build", ".build", "DerivedData", "xcuserdata"}
+PRIVATE_PARTS = {"Profiles", "SetupBackups", "UnresolvedOpeningEpoch", "private-reports", "build", ".build", "DerivedData", "xcuserdata"}
 SCREENSHOT_ASSETS = {
     "docs/assets/screenshots/codexswoop-overview.png": {
         "size": 55795, "width": 640, "height": 662,
@@ -50,7 +50,7 @@ DOCUMENT_IDENTIFIERS = {
 EXCLUDED = ["build/research/private-report.json", ".build/object", "Profiles/fixture/data", "auth.json",
             "profiles.json", "environments.json", "managed-environments.json", "managed-environments.backup.json",
             "managed-environments-damaged-fixture.json", "private-reports/report.md", ".env", "key.p12",
-            "retained-environments.json", "setup-journal.json", "opening-journal.json", "opening-journal-watermark.json", "opening-operation.lock", "SetupBackups/snapshot.json", "Cookies",
+            "retained-environments.json", "setup-journal.json", "opening-journal.json", "opening-journal-watermark.json", "opening-operation.lock", "SetupBackups/snapshot.json", "UnresolvedOpeningEpoch/manifest.json", "Cookies",
             ".idea/codexswoop.iml", "refresh-tokens.json", "credentials.json", "export.keychain-db", "export.pfx", "trace.har",
             "diagnostic.ips", "data.sqlite", "old.bak", "local.app/Contents/Info.plist", "trial.dmg", "backup.zip"]
 

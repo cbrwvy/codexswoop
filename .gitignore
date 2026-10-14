@@ -73,3 +73,6 @@ credentials.*.json
 opening-journal.json
 opening-journal-watermark.json
 opening-operation.lock
+
+# Immutable unresolved opening evidence is private runtime metadata.
+UnresolvedOpeningEpoch/

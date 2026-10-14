@@ -94,15 +94,16 @@ public struct PendingOpeningOperation: Codable, Equatable, Sendable {
 /// One operation across all Swoop processes. The lease is held until postflight or failure,
 /// never by a recovered record. Every record transition also uses the existing metadata lock.
 public final class OpeningOperationJournal: @unchecked Sendable {
-    private struct Envelope: Codable {
+    struct Envelope: Codable {
         var schemaVersion = 2
         let storeID: UUID
         let revision: UInt64
         let state: String
         let pending: PendingOpeningOperation?
         let settled: PendingOpeningOperation?
+        var supersession: OpeningEpochProvenance? = nil
     }
-    private struct Watermark: Codable {
+    struct Watermark: Codable {
         var schemaVersion = 1
         let storeID: UUID
         let revision: UInt64
@@ -155,12 +156,23 @@ public final class OpeningOperationJournal: @unchecked Sendable {
             return nil
         }
         guard let journal, let marker else { throw OpeningJournalError.invalid }
+        let value = try decodePair(journal, marker)
+        if value.schemaVersion == 3 {
+            do { try OpeningEpochEngine.verifyProvenance(root: root, provenance: value.supersession, storeID: value.storeID) }
+            catch { throw OpeningJournalError.invalid }
+        }
+        return value
+    }
+    static func decodePair(_ journal: Data, _ marker: Data) throws -> Envelope {
+        guard journal.count <= 262_144, marker.count <= 262_144 else { throw OpeningJournalError.invalid }
         let value: Envelope, watermark: Watermark
         do {
             value = try JSONDecoder().decode(Envelope.self, from: journal)
             watermark = try JSONDecoder().decode(Watermark.self, from: marker)
         } catch { throw OpeningJournalError.invalid }
-        guard value.schemaVersion == 2, watermark.schemaVersion == 1,
+        guard (value.schemaVersion == 2 && value.supersession == nil)
+                || (value.schemaVersion == 3 && value.supersession != nil) else { throw OpeningJournalError.invalid }
+        guard watermark.schemaVersion == 1,
               value.storeID == watermark.storeID, value.revision == watermark.revision,
               hash(journal) == watermark.journalSHA256,
               (value.state == "idle" && value.pending == nil)
@@ -247,8 +259,8 @@ public final class OpeningOperationJournal: @unchecked Sendable {
     }
     private func save(_ record: PendingOpeningOperation?, settled: PendingOpeningOperation? = nil) throws {
         guard let current = try Self.envelopeLocked(root: root), current.revision < UInt64.max else { throw OpeningJournalError.invalid }
-        try persist(Envelope(storeID: current.storeID, revision: current.revision + 1,
-            state: record == nil ? "idle" : "pending", pending: record, settled: settled))
+        try persist(Envelope(schemaVersion: current.schemaVersion, storeID: current.storeID, revision: current.revision + 1,
+            state: record == nil ? "idle" : "pending", pending: record, settled: settled, supersession: current.supersession))
     }
     private static func hash(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()

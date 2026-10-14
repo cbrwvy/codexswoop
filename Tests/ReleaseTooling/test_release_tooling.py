@@ -90,6 +90,24 @@ class ReleaseToolingTests(unittest.TestCase):
         version, build = release.validate_app(app, release.LOCAL_MODE, runner=success)
         self.assertEqual((version, build), ("0.1.0", "3"))
 
+    def test_recovery_helper_is_an_exact_allowlisted_macho(self):
+        app = create_app(self.root)
+        helper = app / "Contents/MacOS/codexswoop-recovery"
+        helper.write_bytes(macho())
+        helper.chmod(0o755)
+        release.inspect_app(app)
+        helper.write_bytes(b"not executable code")
+        with self.assertRaisesRegex(release.ReleaseError, "executable Mach-O"):
+            release.inspect_app(app)
+
+    def test_recovery_helper_wrong_arch_is_rejected(self):
+        app = create_app(self.root)
+        helper = app / "Contents/MacOS/codexswoop-recovery"
+        helper.write_bytes(macho(release.X86_64))
+        helper.chmod(0o755)
+        with self.assertRaisesRegex(release.ReleaseError, "arm64-only"):
+            release.inspect_app(app)
+
     def test_x86_64_app_is_rejected(self):
         app = create_app(self.root, binary=macho(release.X86_64))
         with self.assertRaisesRegex(release.ReleaseError, "arm64-only"):
