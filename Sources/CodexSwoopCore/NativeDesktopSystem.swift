@@ -491,6 +491,11 @@ public actor NativeDesktopSystem: DesktopSystem {
     }
     @MainActor static func launchApplication(_ app: URL, paths: DesktopLaunchPaths,
         environment: [String: String]) async throws -> (Int32, Date) {
+        // A missing bundle is a deterministic LaunchServices failure. Do not send an
+        // invalid URL into AppKit: that can abort XCTest instead of reporting an error.
+        guard FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/Info.plist").path) else {
+            throw EnvironmentError.launchServicesFailed(-10814) // kLSApplicationNotFoundErr
+        }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
         configuration.activates = false
