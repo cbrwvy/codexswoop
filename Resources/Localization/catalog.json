@@ -1,0 +1,1913 @@
+{
+  "language.system": {
+    "en": "System Default",
+    "ru": "Как в системе",
+    "uz-Latn": "Tizim tili"
+  },
+  "settings.title": {
+    "en": "Settings",
+    "ru": "Настройки",
+    "uz-Latn": "Sozlamalar"
+  },
+  "settings.general": {
+    "en": "General",
+    "ru": "Основные",
+    "uz-Latn": "Umumiy"
+  },
+  "settings.language": {
+    "en": "Language",
+    "ru": "Язык",
+    "uz-Latn": "Til"
+  },
+  "settings.login": {
+    "en": "Launch at Login",
+    "ru": "Запускать при входе",
+    "uz-Latn": "Tizimga kirishda ochish"
+  },
+  "settings.loginApproval": {
+    "en": "Approval required in System Settings → General → Login Items.",
+    "ru": "Разрешите запуск в Системных настройках → Основные → Объекты входа.",
+    "uz-Latn": "Tizim sozlamalari → Umumiy → Kirish obyektlari orqali ruxsat bering."
+  },
+  "settings.codex": {
+    "en": "Codex application",
+    "ru": "Приложение Codex",
+    "uz-Latn": "Codex ilovasi"
+  },
+  "settings.choose": {
+    "en": "Choose Codex Application…",
+    "ru": "Выбрать приложение Codex…",
+    "uz-Latn": "Codex ilovasini tanlash…"
+  },
+  "settings.refresh": {
+    "en": "Refresh",
+    "ru": "Обновить",
+    "uz-Latn": "Yangilash"
+  },
+  "settings.storage": {
+    "en": "Accounts & Storage",
+    "ru": "Аккаунты и хранилище",
+    "uz-Latn": "Hisoblar va saqlash"
+  },
+  "settings.savedEmpty": {
+    "en": "No saved inactive accounts.",
+    "ru": "Нет сохранённых неактивных аккаунтов.",
+    "uz-Latn": "Saqlangan nofaol hisoblar yo‘q."
+  },
+  "settings.saved": {
+    "en": "Saved Accounts",
+    "ru": "Сохранённые аккаунты",
+    "uz-Latn": "Saqlangan hisoblar"
+  },
+  "settings.restore": {
+    "en": "Restore…",
+    "ru": "Восстановить…",
+    "uz-Latn": "Tiklash…"
+  },
+  "settings.retained": {
+    "en": "Retained · not linked",
+    "ru": "Сохранено · не привязано",
+    "uz-Latn": "Saqlangan · bog‘lanmagan"
+  },
+  "settings.preserve": {
+    "en": "These are saved records of removed profiles. Clearing this list keeps active profiles, Codex data and sign-in.",
+    "ru": "Здесь сохранены записи удалённых профилей. Очистка списка сохраняет активные профили, данные Codex и авторизацию.",
+    "uz-Latn": "Bu yerda olib tashlangan profillarning yozuvlari saqlanadi. Ro‘yxatni tozalash faol profillar, Codex ma’lumotlari va kirish holatini saqlaydi."
+  },
+  "settings.reset": {
+    "en": "Clear Saved Accounts…",
+    "ru": "Очистить сохранённые аккаунты…",
+    "uz-Latn": "Saqlangan hisoblarni tozalash…"
+  },
+  "settings.diagnostics": {
+    "en": "Permissions & Diagnostics",
+    "ru": "Разрешения и диагностика",
+    "uz-Latn": "Ruxsatlar va diagnostika"
+  },
+  "settings.accessibility": {
+    "en": "Accessibility",
+    "ru": "Универсальный доступ",
+    "uz-Latn": "Maxsus imkoniyatlar"
+  },
+  "settings.granted": {
+    "en": "Allowed",
+    "ru": "Разрешено",
+    "uz-Latn": "Ruxsat berilgan"
+  },
+  "settings.notGranted": {
+    "en": "Not allowed",
+    "ru": "Не разрешено",
+    "uz-Latn": "Ruxsat berilmagan"
+  },
+  "settings.axExplanation": {
+    "en": "Opening accounts does not require Accessibility. This status is read-only; CodexSwoop never prompts automatically.",
+    "ru": "Для открытия аккаунтов Универсальный доступ не нужен. Здесь только проверяется статус; CodexSwoop не запрашивает разрешение автоматически.",
+    "uz-Latn": "Hisoblarni ochish uchun Maxsus imkoniyatlar kerak emas. Bu yerda faqat holat tekshiriladi; CodexSwoop avtomatik ruxsat so‘ramaydi."
+  },
+  "settings.openAX": {
+    "en": "Open Accessibility Settings…",
+    "ru": "Открыть настройки доступа…",
+    "uz-Latn": "Ruxsat sozlamalarini ochish…"
+  },
+  "settings.checkAll": {
+    "en": "Recheck Environments",
+    "ru": "Проверить окружения",
+    "uz-Latn": "Muhitlarni qayta tekshirish"
+  },
+  "settings.version": {
+    "en": "Version",
+    "ru": "Версия",
+    "uz-Latn": "Versiya"
+  },
+  "settings.usage": {
+    "en": "Usage Monitoring",
+    "ru": "Мониторинг лимитов",
+    "uz-Latn": "Limitlarni kuzatish"
+  },
+  "settings.usageDetail": {
+    "en": "Live usage needs independently verified account identity and a supported transport. Environment linking and visual confirmation do not enable it.",
+    "ru": "Для живых лимитов нужны независимо подтверждённая identity аккаунта и поддерживаемое соединение. Привязка окружения и визуальная проверка этого не заменяют.",
+    "uz-Latn": "Jonli limitlar uchun hisobning mustaqil tasdiqlangan identity qiymati va qo‘llab-quvvatlanadigan ulanish kerak. Muhitni bog‘lash va vizual tekshirish buni almashtirmaydi."
+  },
+  "settings.lastError": {
+    "en": "Last operation details",
+    "ru": "Последняя ошибка операции",
+    "uz-Latn": "Oxirgi amal tafsilotlari"
+  },
+  "settings.noError": {
+    "en": "No operation errors.",
+    "ru": "Ошибок операций нет.",
+    "uz-Latn": "Amallarda xato yo‘q."
+  },
+  "settings.about": {
+    "en": "Independent utility. Not affiliated with OpenAI.",
+    "ru": "Независимая утилита. Не связана с OpenAI.",
+    "uz-Latn": "Mustaqil yordamchi ilova. OpenAI bilan bog‘liq emas."
+  },
+  "menu.accounts": {
+    "en": "ACCOUNTS",
+    "ru": "АККАУНТЫ",
+    "uz-Latn": "HISOBLAR"
+  },
+  "menu.add": {
+    "en": "Add Account",
+    "ru": "Добавить аккаунт",
+    "uz-Latn": "Hisob qo‘shish"
+  },
+  "menu.empty": {
+    "en": "No accounts yet",
+    "ru": "Аккаунтов пока нет",
+    "uz-Latn": "Hozircha hisoblar yo‘q"
+  },
+  "menu.emptyDetail": {
+    "en": "Add your first Codex account to get started.",
+    "ru": "Добавьте первый аккаунт Codex.",
+    "uz-Latn": "Boshlash uchun birinchi Codex hisobini qo‘shing."
+  },
+  "menu.loading": {
+    "en": "Loading…",
+    "ru": "Загрузка…",
+    "uz-Latn": "Yuklanmoqda…"
+  },
+  "menu.unavailable": {
+    "en": "Profiles unavailable",
+    "ru": "Профили недоступны",
+    "uz-Latn": "Profillar mavjud emas"
+  },
+  "menu.open": {
+    "en": "Open {0}",
+    "ru": "Открыть {0}",
+    "uz-Latn": "{0} hisobini ochish"
+  },
+  "menu.manage": {
+    "en": "Manage {0}",
+    "ru": "Управление: {0}",
+    "uz-Latn": "{0} hisobini boshqarish"
+  },
+  "menu.rename": {
+    "en": "Rename…",
+    "ru": "Переименовать…",
+    "uz-Latn": "Nomini o‘zgartirish…"
+  },
+  "menu.recheck": {
+    "en": "Recheck Environment",
+    "ru": "Проверить окружение",
+    "uz-Latn": "Muhitni qayta tekshirish"
+  },
+  "menu.connect": {
+    "en": "Connect Account…",
+    "ru": "Подключить аккаунт…",
+    "uz-Latn": "Hisobni ulash…"
+  },
+  "menu.prepare": {
+    "en": "Prepare Managed Environment",
+    "ru": "Подготовить управляемое окружение",
+    "uz-Latn": "Boshqariladigan muhit tayyorlash"
+  },
+  "menu.disconnect": {
+    "en": "Disconnect Profile…",
+    "ru": "Отвязать профиль…",
+    "uz-Latn": "Profilni ajratish…"
+  },
+  "menu.remove": {
+    "en": "Remove Profile…",
+    "ru": "Удалить профиль…",
+    "uz-Latn": "Profilni olib tashlash…"
+  },
+  "menu.visual": {
+    "en": "Confirm Account Visually…",
+    "ru": "Подтвердить аккаунт визуально…",
+    "uz-Latn": "Hisobni vizual tasdiqlash…"
+  },
+  "menu.error": {
+    "en": "Operation needs attention",
+    "ru": "Операция требует внимания",
+    "uz-Latn": "Amal e’tibor talab qiladi"
+  },
+  "menu.details": {
+    "en": "Details…",
+    "ru": "Подробнее…",
+    "uz-Latn": "Batafsil…"
+  },
+  "menu.needsReview": {
+    "en": "Result not confirmed",
+    "ru": "Результат не подтверждён",
+    "uz-Latn": "Natija tasdiqlanmadi"
+  },
+  "menu.review": {
+    "en": "Check Again",
+    "ru": "Проверить ещё раз",
+    "uz-Latn": "Qayta tekshirish"
+  },
+  "menu.cancel": {
+    "en": "Cancel Operation",
+    "ru": "Отменить операцию",
+    "uz-Latn": "Amalni bekor qilish"
+  },
+  "menu.cancelHelp": {
+    "en": "Stop further requests. A delivered request may still take effect.",
+    "ru": "Остановить дальнейшие запросы. Уже отправленный запрос может выполниться.",
+    "uz-Latn": "Keyingi so‘rovlarni to‘xtatish. Yuborilgan so‘rov hali bajarilishi mumkin."
+  },
+  "menu.done": {
+    "en": "Operation completed",
+    "ru": "Операция выполнена",
+    "uz-Latn": "Amal bajarildi"
+  },
+  "menu.detected": {
+    "en": "Codex available",
+    "ru": "Codex найден",
+    "uz-Latn": "Codex mavjud"
+  },
+  "menu.notFound": {
+    "en": "Codex not found",
+    "ru": "Codex не найден",
+    "uz-Latn": "Codex topilmadi"
+  },
+  "menu.qa": {
+    "en": "QA · fictional profiles",
+    "ru": "QA · фиктивные профили",
+    "uz-Latn": "QA · sun’iy profillar"
+  },
+  "menu.quit": {
+    "en": "Quit CodexSwoop",
+    "ru": "Закрыть CodexSwoop",
+    "uz-Latn": "CodexSwoop ilovasidan chiqish"
+  },
+  "common.cancel": {
+    "en": "Cancel",
+    "ru": "Отмена",
+    "uz-Latn": "Bekor qilish"
+  },
+  "common.save": {
+    "en": "Save",
+    "ru": "Сохранить",
+    "uz-Latn": "Saqlash"
+  },
+  "common.retry": {
+    "en": "Retry",
+    "ru": "Повторить",
+    "uz-Latn": "Qayta urinish"
+  },
+  "common.recover": {
+    "en": "Recover",
+    "ru": "Восстановить",
+    "uz-Latn": "Tiklash"
+  },
+  "common.close": {
+    "en": "Close",
+    "ru": "Закрыть",
+    "uz-Latn": "Yopish"
+  },
+  "common.details": {
+    "en": "Details",
+    "ru": "Подробнее",
+    "uz-Latn": "Batafsil"
+  },
+  "common.none": {
+    "en": "Unavailable",
+    "ru": "Недоступно",
+    "uz-Latn": "Mavjud emas"
+  },
+  "common.profileName": {
+    "en": "Account name",
+    "ru": "Название аккаунта",
+    "uz-Latn": "Hisob nomi"
+  },
+  "account.rename": {
+    "en": "Rename Profile",
+    "ru": "Переименовать профиль",
+    "uz-Latn": "Profil nomini o‘zgartirish"
+  },
+  "account.link": {
+    "en": "Use Existing Codex",
+    "ru": "Использовать текущий Codex",
+    "uz-Latn": "Mavjud Codex’dan foydalanish"
+  },
+  "account.new": {
+    "en": "Sign In to Another Account",
+    "ru": "Войти в другой аккаунт",
+    "uz-Latn": "Boshqa hisobga kirish"
+  },
+  "account.mode": {
+    "en": "Account setup",
+    "ru": "Способ добавления",
+    "uz-Latn": "Hisobni sozlash"
+  },
+  "account.linkDetail": {
+    "en": "Already signed in to Codex on this Mac? Connect your existing setup without signing in again.",
+    "ru": "Уже вошли в Codex на этом Mac? Подключим существующий аккаунт без повторного входа.",
+    "uz-Latn": "Bu Mac’da Codex’ga kirganmisiz? Qayta kirmasdan mavjud hisobingizni ulang."
+  },
+  "account.newDetail": {
+    "en": "Create a separate Codex environment and sign in with another ChatGPT account.",
+    "ru": "Создадим отдельное окружение Codex, в котором вы сможете войти в другой аккаунт ChatGPT.",
+    "uz-Latn": "Alohida Codex muhiti yaratiladi. Unda boshqa ChatGPT hisobiga kirishingiz mumkin."
+  },
+  "account.oldDetail": {
+    "en": "Restore an old environment explicitly from Settings → Accounts & Storage.",
+    "ru": "Старое окружение можно явно восстановить в Настройки → Аккаунты и хранилище.",
+    "uz-Latn": "Eski muhitni Sozlamalar → Hisoblar va saqlash orqali alohida tiklash mumkin."
+  },
+  "account.renameDetail": {
+    "en": "The profile UUID and environment stay the same.",
+    "ru": "UUID профиля и окружение сохраняются.",
+    "uz-Latn": "Profil UUID qiymati va muhit o‘zgarmaydi."
+  },
+  "account.create": {
+    "en": "Create Environment",
+    "ru": "Создать окружение",
+    "uz-Latn": "Muhit yaratish"
+  },
+  "account.count": {
+    "en": {
+      "one": "{0} account",
+      "other": "{0} accounts"
+    },
+    "ru": {
+      "one": "{0} аккаунт",
+      "few": "{0} аккаунта",
+      "many": "{0} аккаунтов",
+      "other": "{0} аккаунта"
+    },
+    "uz-Latn": {
+      "one": "{0} ta hisob",
+      "other": "{0} ta hisob"
+    }
+  },
+  "connection.environment": {
+    "en": "Environment",
+    "ru": "Окружение",
+    "uz-Latn": "Muhit"
+  },
+  "connection.current": {
+    "en": "Current default environment",
+    "ru": "Текущее стандартное окружение",
+    "uz-Latn": "Joriy standart muhit"
+  },
+  "connection.isolated": {
+    "en": "Existing isolated environment",
+    "ru": "Существующее изолированное окружение",
+    "uz-Latn": "Mavjud ajratilgan muhit"
+  },
+  "connection.choose": {
+    "en": "Choose Environment Folder…",
+    "ru": "Выбрать каталог окружения…",
+    "uz-Latn": "Muhit papkasini tanlash…"
+  },
+  "connection.check": {
+    "en": "Check Directories",
+    "ru": "Проверить каталоги",
+    "uz-Latn": "Papkalarni tekshirish"
+  },
+  "connection.link": {
+    "en": "Connect",
+    "ru": "Подключить",
+    "uz-Latn": "Ulash"
+  },
+  "connection.info": {
+    "en": "Link directory references only. No sign-in, launch or account identity verification.",
+    "ru": "Привязать только ссылки на каталоги. Без входа, запуска и подтверждения identity аккаунта.",
+    "uz-Latn": "Faqat papka manzillari bog‘lanadi. Kirish, ishga tushirish yoki hisob identity tasdig‘i bajarilmaydi."
+  },
+  "connection.chooseDetail": {
+    "en": "Choose the original UUID folder containing codex-home and electron-user-data.",
+    "ru": "Выберите исходный каталог UUID с codex-home и electron-user-data.",
+    "uz-Latn": "codex-home va electron-user-data joylashgan asl UUID papkasini tanlang."
+  },
+  "connection.checked": {
+    "en": "Directories verified. Account identity remains unverified.",
+    "ru": "Каталоги проверены. Identity аккаунта не подтверждена.",
+    "uz-Latn": "Papkalar tekshirildi. Hisob identity qiymati tasdiqlanmagan."
+  },
+  "usage.title": {
+    "en": "Usage",
+    "ru": "Лимиты",
+    "uz-Latn": "Limitlar"
+  },
+  "usage.refresh": {
+    "en": "Refresh usage",
+    "ru": "Обновить лимиты",
+    "uz-Latn": "Limitlarni yangilash"
+  },
+  "usage.refreshHelp": {
+    "en": "Refresh verified usage",
+    "ru": "Обновить подтверждённые лимиты",
+    "uz-Latn": "Tasdiqlangan limitlarni yangilash"
+  },
+  "usage.noWindows": {
+    "en": "No quota windows supplied",
+    "ru": "Интервалы лимитов не получены",
+    "uz-Latn": "Limit davrlari olinmagan"
+  },
+  "usage.more": {
+    "en": "Additional limits ({0})",
+    "ru": "Дополнительные лимиты ({0})",
+    "uz-Latn": "Qo‘shimcha limitlar ({0})"
+  },
+  "usage.updated": {
+    "en": "Updated {0}",
+    "ru": "Обновлено: {0}",
+    "uz-Latn": "Yangilangan: {0}"
+  },
+  "usage.lastUpdate": {
+    "en": "Last successful update: {0}",
+    "ru": "Последнее успешное обновление: {0}",
+    "uz-Latn": "Oxirgi muvaffaqiyatli yangilanish: {0}"
+  },
+  "usage.resets": {
+    "en": "Resets {0}",
+    "ru": "Сброс: {0}",
+    "uz-Latn": "Tiklanish: {0}"
+  },
+  "usage.noReset": {
+    "en": "Reset time unavailable",
+    "ru": "Время сброса неизвестно",
+    "uz-Latn": "Tiklanish vaqti noma’lum"
+  },
+  "review.title": {
+    "en": "Check previous result?",
+    "ru": "Проверить предыдущий результат?",
+    "uz-Latn": "Oldingi natija tekshirilsinmi?"
+  },
+  "review.detail": {
+    "en": "Review Codex and any unsaved work. This performs read-only checks of current processes, signature and environment ownership. It never launches or closes Codex. If ownership remains unknown, the warning stays.",
+    "ru": "Проверьте Codex и несохранённую работу. Будут только прочитаны текущие процессы, подпись и принадлежность окружений. Codex не запускается и не закрывается. При неизвестной принадлежности предупреждение сохранится.",
+    "uz-Latn": "Codex va saqlanmagan ishlarni ko‘rib chiqing. Faqat joriy jarayonlar, imzo va muhit egaligi tekshiriladi. Codex ochilmaydi va yopilmaydi. Egalik noma’lum qolsa, ogohlantirish saqlanadi."
+  },
+  "review.check": {
+    "en": "Check Again",
+    "ru": "Проверить ещё раз",
+    "uz-Latn": "Qayta tekshirish"
+  },
+  "review.resolved": {
+    "en": "Ready for a new operation.",
+    "ru": "Можно начать новую операцию.",
+    "uz-Latn": "Yangi amalni boshlash mumkin."
+  },
+  "message.06f2a0edf2": {
+    "en": "Connect Account",
+    "ru": "Подключить аккаунт",
+    "uz-Latn": "Hisobni ulash"
+  },
+  "message.ee986a6259": {
+    "en": "Link an existing environment reference. This does not sign in, close Codex or confirm account identity.",
+    "ru": "Привязать существующее окружение. Без входа, закрытия Codex и подтверждения identity аккаунта.",
+    "uz-Latn": "Mavjud muhitni bog‘lash. Kirish, Codex ilovasini yopish yoki hisob identity tasdig‘i bajarilmaydi."
+  },
+  "message.ffc6526840": {
+    "en": "Import Current Account links the standard locations only. The running app may use other settings; identity remains Verification required.",
+    "ru": "Подключаются только стандартные каталоги. Работающее приложение может использовать другие настройки; identity требует проверки.",
+    "uz-Latn": "Faqat standart papkalar bog‘lanadi. Ishlayotgan ilova boshqa sozlamalardan foydalanishi mumkin; identity tekshirilishi kerak."
+  },
+  "message.c15cdd6496": {
+    "en": "The reference could not be checked. Nothing was changed.",
+    "ru": "Не удалось проверить привязку. Изменений нет.",
+    "uz-Latn": "Bog‘lanishni tekshirib bo‘lmadi. Hech narsa o‘zgarmadi."
+  },
+  "message.4ce4ee0d33": {
+    "en": "Temporary research data can be removed by macOS. Linking does not make it durable or move any files.",
+    "ru": "macOS может удалить временные исследовательские данные. Привязка не сохраняет и не перемещает файлы.",
+    "uz-Latn": "macOS vaqtinchalik tadqiqot ma’lumotlarini o‘chirishi mumkin. Bog‘lash fayllarni doimiy saqlamaydi va ko‘chirmaydi."
+  },
+  "message.8598a8cfdb": {
+    "en": "Directories checked. Authorization and effective running configuration remain unverified.",
+    "ru": "Каталоги проверены. Авторизация и фактические настройки работающего экземпляра не подтверждены.",
+    "uz-Latn": "Papkalar tekshirildi. Kirish holati va ishlayotgan nusxaning haqiqiy sozlamalari tasdiqlanmagan."
+  },
+  "message.5638c9c401": {
+    "en": "Saving changes CodexSwoop reference metadata only. Your profile UUID and Codex data stay the same.",
+    "ru": "Сохраняются только метаданные привязки CodexSwoop. UUID профиля и данные Codex остаются прежними.",
+    "uz-Latn": "Faqat CodexSwoop bog‘lanish metama’lumoti saqlanadi. Profil UUID qiymati va Codex ma’lumotlari o‘zgarmaydi."
+  },
+  "message.60100daa61": {
+    "en": "Link Environment",
+    "ru": "Привязать окружение",
+    "uz-Latn": "Muhitni bog‘lash"
+  },
+  "message.f1d0272f0e": {
+    "en": "Choose Existing Codex Environment",
+    "ru": "Выбрать существующее окружение Codex",
+    "uz-Latn": "Mavjud Codex muhitini tanlash"
+  },
+  "message.3b037284c5": {
+    "en": "Account setup mode",
+    "ru": "Способ добавления аккаунта",
+    "uz-Latn": "Hisob qo‘shish usuli"
+  },
+  "message.5827ce9e93": {
+    "en": "Create a fresh isolated environment with its own UUID. Then choose Open Separately and Sign In in official Codex yourself. Authorization is never copied.",
+    "ru": "Создать новое изолированное окружение с собственным UUID. Затем выберите «Открыть отдельно» и войдите через официальный Sign In в Codex. Авторизация не копируется.",
+    "uz-Latn": "O‘z UUID qiymatiga ega yangi ajratilgan muhit yarating. Keyin «Alohida ochish»ni tanlab, rasmiy Codex Sign In orqali kiring. Kirish ma’lumotlari nusxalanmaydi."
+  },
+  "message.001208c707": {
+    "en": "Link the existing default Codex Desktop environment. No repeated login or data move. An environment already linked to another profile is refused.",
+    "ru": "Подключить стандартное окружение Codex Desktop без повторного входа и перемещения данных. Активная повторная привязка запрещена.",
+    "uz-Latn": "Standart Codex Desktop muhitini qayta kirmasdan va ma’lumot ko‘chirmasdan bog‘lang. Faol takroriy bog‘lanish taqiqlanadi."
+  },
+  "message.c3ecb03a38": {
+    "en": "Old saved environments stay on disk. Restore them explicitly from Settings → Accounts & Storage.",
+    "ru": "Старые окружения сохраняются на диске. Восстановите их явно в Настройки → Аккаунты и хранилище.",
+    "uz-Latn": "Eski muhitlar diskda saqlanadi. Ularni Sozlamalar → Hisoblar va saqlash orqali alohida tiklang."
+  },
+  "message.f5f53660b0": {
+    "en": "Your profile ID and local directory stay the same.",
+    "ru": "ID профиля и локальный каталог сохраняются.",
+    "uz-Latn": "Profil ID qiymati va mahalliy papka saqlanadi."
+  },
+  "message.f04d8455dd": {
+    "en": "Invalid name",
+    "ru": "Недопустимое название",
+    "uz-Latn": "Noto‘g‘ri nom"
+  },
+  "message.0394db2a65": {
+    "en": "Remove “{0}”?",
+    "ru": "Удалить «{0}»?",
+    "uz-Latn": "«{0}» olib tashlansinmi?"
+  },
+  "message.00f1271bcc": {
+    "en": "This removes the account profile and its active link from CodexSwoop.\n\nYour Codex account, projects, authentication and local environment files will not be deleted.\n\nIf its Codex instance is running, it will stay open and will no longer be managed by this profile. Unmanaged instances can block Close Others & Open.",
+    "ru": "Удаляется профиль аккаунта и его активная привязка в CodexSwoop.\n\nАккаунт Codex, проекты, авторизация и файлы окружения не удаляются.\n\nРаботающий экземпляр Codex останется открытым, но профиль больше не будет им управлять. Неуправляемые экземпляры могут блокировать «Закрыть остальные и открыть».",
+    "uz-Latn": "CodexSwoop ichidagi hisob profili va uning faol bog‘lanishi olib tashlanadi.\n\nCodex hisobi, loyihalar, kirish holati va muhit fayllari o‘chirilmaydi.\n\nIshlayotgan Codex nusxasi ochiq qoladi, lekin bu profil uni boshqarmaydi. Boshqarilmaydigan nusxalar «Boshqalarini yopib ochish»ni to‘sishi mumkin."
+  },
+  "message.2f996d867a": {
+    "en": "Remove Profile",
+    "ru": "Удалить профиль",
+    "uz-Latn": "Profilni olib tashlash"
+  },
+  "message.476470c77c": {
+    "en": "Profile removed. Its Codex environment and authorization remain on disk.",
+    "ru": "Профиль удалён. Окружение Codex и авторизация сохранены на диске.",
+    "uz-Latn": "Profil olib tashlandi. Codex muhiti va kirish holati diskda saqlandi."
+  },
+  "message.10250dfdab": {
+    "en": "Clear saved accounts?",
+    "ru": "Очистить сохранённые аккаунты?",
+    "uz-Latn": "Saqlangan hisoblar tozalansinmi?"
+  },
+  "message.a80bbaae71": {
+    "en": "Remove {0} saved account records from this list. Active profiles and their links stay unchanged.\n\nA verified metadata backup will be created first. Codex environments, sign-in, projects, history and running instances are preserved.",
+    "ru": "Удалить сохранённые записи аккаунтов ({0}) из этого списка. Активные профили и их привязки не изменятся.\n\nСначала будет создана проверенная резервная копия метаданных. Окружения Codex, авторизация, проекты, история и работающие экземпляры сохранятся.",
+    "uz-Latn": "Ushbu ro‘yxatdan {0} ta saqlangan hisob yozuvini olib tashlash. Faol profillar va ularning bog‘lanishlari o‘zgarmaydi.\n\nAvval metama’lumotning tekshirilgan zaxirasi yaratiladi. Codex muhitlari, kirish holati, loyihalar, tarix va ishlayotgan nusxalar saqlanadi."
+  },
+  "message.d1e7d1ae9c": {
+    "en": "Clear Saved Accounts",
+    "ru": "Очистить сохранённые аккаунты",
+    "uz-Latn": "Saqlangan hisoblarni tozalash"
+  },
+  "message.a0eca2612a": {
+    "en": "Saved account list cleared. Active profiles are unchanged.",
+    "ru": "Список сохранённых аккаунтов очищен. Активные профили сохранены.",
+    "uz-Latn": "Saqlangan hisoblar ro‘yxati tozalandi. Faol profillar saqlandi."
+  },
+  "message.7fcd27f57c": {
+    "en": "Ready. Choose Open Separately, then sign in through Codex.",
+    "ru": "Готово. Выберите «Открыть отдельно», затем войдите в Codex.",
+    "uz-Latn": "Tayyor. Alohida ochishni tanlang, keyin Codex orqali kiring."
+  },
+  "message.0746d362c1": {
+    "en": "Existing default Codex environment linked. No login or data move was performed.",
+    "ru": "Стандартное окружение Codex привязано. Повторный вход и перемещение данных не выполнялись.",
+    "uz-Latn": "Standart Codex muhiti bog‘landi. Qayta kirish yoki ma’lumot ko‘chirish bajarilmadi."
+  },
+  "message.ca4dd4cbef": {
+    "en": "Restore Saved Environment?",
+    "ru": "Восстановить сохранённое окружение?",
+    "uz-Latn": "Saqlangan muhit tiklansinmi?"
+  },
+  "message.f9b461fcfb": {
+    "en": "Restore {0} with its original UUID {1}.\n\nCODEX_HOME: {2}\nElectron data: {3}\n\nOnly profile metadata and the link will be restored. Authorization files stay in place. Codex will not be opened automatically.",
+    "ru": "Восстановить {0} с исходным UUID {1}.\n\nCODEX_HOME: {2}\nДанные Electron: {3}\n\nВосстановятся только метаданные профиля и привязка. Файлы авторизации останутся на месте. Codex автоматически не откроется.",
+    "uz-Latn": "{0} muhitini asl UUID {1} bilan tiklash.\n\nCODEX_HOME: {2}\nElectron ma’lumotlari: {3}\n\nFaqat profil metama’lumoti va bog‘lanishi tiklanadi. Kirish fayllari joyida qoladi. Codex avtomatik ochilmaydi."
+  },
+  "message.f8268d31fc": {
+    "en": "Restore Environment",
+    "ru": "Восстановить окружение",
+    "uz-Latn": "Muhitni tiklash"
+  },
+  "message.89787c9311": {
+    "en": "Saved environment restored with its original profile UUID. No Codex files were moved.",
+    "ru": "Окружение восстановлено с исходным UUID профиля. Файлы Codex не перемещались.",
+    "uz-Latn": "Muhit asl profil UUID qiymati bilan tiklandi. Codex fayllari ko‘chirilmadi."
+  },
+  "message.1e8e229013": {
+    "en": "Review Interrupted Account Setup",
+    "ru": "Проверить прерванную настройку аккаунтов",
+    "uz-Latn": "Uzilgan hisob sozlashini tekshirish"
+  },
+  "message.9d592c131b": {
+    "en": "A {0} operation did not finish. The verified backup and current files will be checked before recovery.\n\nFinish the reviewed change or restore the complete previous metadata set. Codex files and running instances remain untouched.",
+    "ru": "Операция {0} не завершилась. Перед восстановлением будут проверены резервная копия и текущие файлы.\n\nЗавершите согласованное изменение или восстановите весь предыдущий набор метаданных. Файлы Codex и работающие экземпляры сохранятся.",
+    "uz-Latn": "{0} amali tugamadi. Tiklashdan oldin zaxira va joriy fayllar tekshiriladi.\n\nKo‘rib chiqilgan o‘zgarishni tugating yoki oldingi metama’lumot to‘plamini to‘liq tiklang. Codex fayllari va ishlayotgan nusxalar saqlanadi."
+  },
+  "message.02b55c56ec": {
+    "en": "Finish Setup Change",
+    "ru": "Завершить изменение",
+    "uz-Latn": "O‘zgarishni tugatish"
+  },
+  "message.f37361768d": {
+    "en": "Restore Previous Setup",
+    "ru": "Восстановить предыдущую настройку",
+    "uz-Latn": "Oldingi sozlashni tiklash"
+  },
+  "message.166c987ae9": {
+    "en": "Account setup recovered. No Codex data or processes were changed.",
+    "ru": "Настройка аккаунтов восстановлена. Данные и процессы Codex не изменялись.",
+    "uz-Latn": "Hisoblar sozlashi tiklandi. Codex ma’lumotlari va jarayonlari o‘zgarmadi."
+  },
+  "message.6910fb9db8": {
+    "en": "Account identity user-confirmed. Independent technical verification is unavailable.",
+    "ru": "Аккаунт подтверждён пользователем. Независимая техническая проверка недоступна.",
+    "uz-Latn": "Hisob foydalanuvchi tomonidan tasdiqlandi. Mustaqil texnik tekshiruv mavjud emas."
+  },
+  "message.8306c1732d": {
+    "en": "Empty permanent storage prepared. No account is linked or signed in; official enrollment needs separate approval.",
+    "ru": "Пустое постоянное хранилище подготовлено. Аккаунт не привязан, вход не выполнен; официальную авторизацию пользователь проходит отдельно.",
+    "uz-Latn": "Bo‘sh doimiy saqlash muhiti tayyorlandi. Hisob bog‘lanmagan, kirilmagan; rasmiy kirishni foydalanuvchi alohida bajaradi."
+  },
+  "message.ee301ab0fc": {
+    "en": "Directories still match. Environment opening requires fresh process checks; ChatGPT identity remains unverified.",
+    "ru": "Каталоги совпадают. Для открытия нужны свежие проверки процессов; identity ChatGPT не подтверждена.",
+    "uz-Latn": "Papkalar mos. Ochish uchun jarayonlar qayta tekshiriladi; ChatGPT identity qiymati tasdiqlanmagan."
+  },
+  "message.7bdf731db2": {
+    "en": "An account operation is in progress.",
+    "ru": "Выполняется операция с аккаунтом.",
+    "uz-Latn": "Hisob bilan amal bajarilmoqda."
+  },
+  "message.92d6637423": {
+    "en": "Profile or environment metadata is unavailable.",
+    "ru": "Метаданные профиля или окружения недоступны.",
+    "uz-Latn": "Profil yoki muhit metama’lumoti mavjud emas."
+  },
+  "message.0301e88b40": {
+    "en": "Link an environment to this account first.",
+    "ru": "Сначала привяжите окружение к этому аккаунту.",
+    "uz-Latn": "Avval bu hisobga muhit bog‘lang."
+  },
+  "message.cbdc541d36": {
+    "en": "The environment is unavailable. Recheck its directories.",
+    "ru": "Окружение недоступно. Проверьте его каталоги.",
+    "uz-Latn": "Muhit mavjud emas. Uning papkalarini tekshiring."
+  },
+  "message.6eb284eb36": {
+    "en": "The reviewed official Codex application is unavailable.",
+    "ru": "Проверенное официальное приложение Codex недоступно.",
+    "uz-Latn": "Tekshirilgan rasmiy Codex ilovasi mavjud emas."
+  },
+  "message.3b862eee81": {
+    "en": "Review the previous result before another operation.",
+    "ru": "Перед новой операцией проверьте предыдущий результат.",
+    "uz-Latn": "Yangi amaldan oldin oldingi natijani tekshiring."
+  },
+  "message.f3a93ef749": {
+    "en": "Only permanent Managed and Standard External environments can be opened.",
+    "ru": "Можно открывать только постоянные Managed и Standard External окружения.",
+    "uz-Latn": "Faqat doimiy Managed va Standard External muhitlarni ochish mumkin."
+  },
+  "message.56e563ef71": {
+    "en": "Confirmed closed: ",
+    "ru": "Подтверждено закрытие: ",
+    "uz-Latn": "Yopilishi tasdiqlangan: "
+  },
+  "message.ee90487fb2": {
+    "en": "The operation stopped.",
+    "ru": "Операция остановлена.",
+    "uz-Latn": "Amal to‘xtatildi."
+  },
+  "message.0e011f9f7e": {
+    "en": "Review Codex before continuing",
+    "ru": "Проверьте Codex перед продолжением",
+    "uz-Latn": "Davom etishdan oldin Codex ilovasini tekshiring"
+  },
+  "message.e6288862ea": {
+    "en": "Check which instances remain open and any unsaved work. A previous request may have taken effect. Confirm only after reviewing Codex. This clears the operation warning; the next action will run fresh checks and ask for confirmation.",
+    "ru": "Проверьте открытые экземпляры и несохранённую работу. Предыдущий запрос мог выполниться. Подтвердите только после проверки Codex. Затем будут выполнены свежие проверки состояния; следующая операция потребует нового подтверждения.",
+    "uz-Latn": "Ochiq nusxalar va saqlanmagan ishlarni tekshiring. Oldingi so‘rov bajarilgan bo‘lishi mumkin. Faqat Codex tekshirilgach tasdiqlang. Keyin holat qayta tekshiriladi; keyingi amal yangi tasdiq talab qiladi."
+  },
+  "message.7988b44076": {
+    "en": "I reviewed Codex",
+    "ru": "Codex проверен мной",
+    "uz-Latn": "Codex ilovasini tekshirdim"
+  },
+  "message.7c00126505": {
+    "en": "Previous result reviewed. Choose an account to start a fresh operation.",
+    "ru": "Предыдущий результат проверен. Выберите аккаунт для новой операции.",
+    "uz-Latn": "Oldingi natija tekshirildi. Yangi amal uchun hisobni tanlang."
+  },
+  "message.944d592a28": {
+    "en": "The operation could not be completed. Your existing data has been preserved.",
+    "ru": "Не удалось завершить операцию. Существующие данные сохранены.",
+    "uz-Latn": "Amalni tugatib bo‘lmadi. Mavjud ma’lumotlar saqlandi."
+  },
+  "message.287b34a6b0": {
+    "en": "Choose Codex Application",
+    "ru": "Выбрать приложение Codex",
+    "uz-Latn": "Codex ilovasini tanlash"
+  },
+  "message.abc04aa349": {
+    "en": "Choose the official application with bundle identifier com.openai.codex.",
+    "ru": "Выберите официальное приложение с идентификатором com.openai.codex.",
+    "uz-Latn": "com.openai.codex identifikatoriga ega rasmiy ilovani tanlang."
+  },
+  "message.7325c9a51a": {
+    "en": "Allow CodexSwoop in System Settings → General → Login Items.",
+    "ru": "Разрешите CodexSwoop в Системных настройках → Основные → Объекты входа.",
+    "uz-Latn": "Tizim sozlamalari → Umumiy → Kirish obyektlari orqali CodexSwoop ilovasiga ruxsat bering."
+  },
+  "message.70746949bd": {
+    "en": "Launch at login could not be changed. Install CodexSwoop in Applications and check Login Items in System Settings.",
+    "ru": "Не удалось изменить запуск при входе. Установите CodexSwoop в Applications и проверьте объекты входа в Системных настройках.",
+    "uz-Latn": "Tizimga kirishda ochishni o‘zgartirib bo‘lmadi. CodexSwoop ilovasini Applications ichiga o‘rnating va System Settings ichidagi Login Items bo‘limini tekshiring."
+  },
+  "message.3d3016d2b1": {
+    "en": "I understand: only saved records will be removed; active profiles and Codex data will stay.",
+    "ru": "Я понимаю: удалятся только сохранённые записи; активные профили и данные Codex сохранятся.",
+    "uz-Latn": "Tushunaman: faqat saqlangan yozuvlar o‘chiriladi; faol profillar va Codex ma’lumotlari saqlanadi."
+  },
+  "message.4088b2673d": {
+    "en": "Confirm clearing saved account records",
+    "ru": "Подтвердить очистку сохранённых записей аккаунтов",
+    "uz-Latn": "Saqlangan hisob yozuvlarini tozalashni tasdiqlash"
+  },
+  "message.4fe12ddf22": {
+    "en": "The one-shot trial is retired. Open CodexSwoop normally and choose an account action; every action requires fresh checks and confirmation.",
+    "ru": "Одноразовый тест отключён. Откройте CodexSwoop обычным способом и выберите действие аккаунта; каждая операция требует свежих проверок и подтверждения.",
+    "uz-Latn": "Bir martalik sinov o‘chirilgan. CodexSwoop ilovasini odatdagidek ochib, hisob amalini tanlang; har bir amal yangi tekshiruv va tasdiq talab qiladi."
+  },
+  "message.d7b589254c": {
+    "en": "unbundled development build",
+    "ru": "сборка разработки без app bundle",
+    "uz-Latn": "app bundle bo‘lmagan ishlab chiqish yig‘ilmasi"
+  },
+  "message.9fffb9bda0": {
+    "en": "CodexSwoop: {0}",
+    "ru": "CodexSwoop: {0}",
+    "uz-Latn": "CodexSwoop: {0}"
+  },
+  "message.63b8a0d3a4": {
+    "en": "macOS: {0}",
+    "ru": "macOS: {0}",
+    "uz-Latn": "macOS: {0}"
+  },
+  "message.a9a56b6644": {
+    "en": "Codex detected: {0}",
+    "ru": "Codex найден: {0}",
+    "uz-Latn": "Codex topildi: {0}"
+  },
+  "message.76aa43e568": {
+    "en": "Codex version: {0}",
+    "ru": "Версия Codex: {0}",
+    "uz-Latn": "Codex versiyasi: {0}"
+  },
+  "message.bd13d1307f": {
+    "en": "Local profiles: {0}",
+    "ru": "Локальных профилей: {0}",
+    "uz-Latn": "Mahalliy profillar: {0}"
+  },
+  "message.c6e5a682a1": {
+    "en": "Metadata status: readable",
+    "ru": "Состояние метаданных: доступны для чтения",
+    "uz-Latn": "Metama’lumot holati: o‘qish mumkin"
+  },
+  "message.68b9f4aa0d": {
+    "en": "Local profiles: unavailable",
+    "ru": "Локальные профили: недоступны",
+    "uz-Latn": "Mahalliy profillar: mavjud emas"
+  },
+  "message.05d6c12c8e": {
+    "en": "Metadata status: {0}",
+    "ru": "Состояние метаданных: {0}",
+    "uz-Latn": "Metama’lumot holati: {0}"
+  },
+  "message.4479980b60": {
+    "en": "Environment opening: available through per-operation GUI confirmation; technical identity and Usage remain unverified",
+    "ru": "Открытие окружений: доступно с отдельным подтверждением каждой операции; техническая identity и лимиты не подтверждены",
+    "uz-Latn": "Muhitlarni ochish: har bir amalni alohida tasdiqlash bilan mavjud; texnik identity va limitlar tasdiqlanmagan"
+  },
+  "message.177d857991": {
+    "en": "Activity: Unknown (Desktop status connection unverified; confirmation required for every switch)",
+    "ru": "Активность: неизвестна (соединение статуса Desktop не подтверждено; каждое переключение требует подтверждения)",
+    "uz-Latn": "Faollik: noma’lum (Desktop holat ulanishi tasdiqlanmagan; har bir almashish tasdiq talab qiladi)"
+  },
+  "message.79df49e4c0": {
+    "en": "Menu bar icon: {0}",
+    "ru": "Иконка строки меню: {0}",
+    "uz-Latn": "Menyu satri belgisi: {0}"
+  },
+  "message.ecdf29e1bb": {
+    "en": "Open Separately · {0}?",
+    "ru": "Открыть отдельно · {0}?",
+    "uz-Latn": "Alohida ochish · {0}?"
+  },
+  "message.327af4e2b1": {
+    "en": "Activate the existing Codex instance (PID {0}).",
+    "ru": "Активировать существующий экземпляр Codex (PID {0}).",
+    "uz-Latn": "Mavjud Codex nusxasini faollashtirish (PID {0})."
+  },
+  "message.c422428afb": {
+    "en": "Launch official Codex using this environment's CODEX_HOME and Electron data directories.",
+    "ru": "Запустить официальный Codex с CODEX_HOME и каталогом данных Electron этого окружения.",
+    "uz-Latn": "Rasmiy Codex ilovasini shu muhitning CODEX_HOME va Electron ma’lumot papkalari bilan ochish."
+  },
+  "message.c27e7f0170": {
+    "en": "\n\nEnvironment: {0}\nCODEX_HOME: {1}\nElectron: {2}\n\nConfirm that this linked environment is intended for this profile. ChatGPT account identity remains technically unverified; Usage Monitoring stays blocked. Other instances remain open.",
+    "ru": "\n\nОкружение: {0}\nCODEX_HOME: {1}\nElectron: {2}\n\nПодтвердите, что окружение предназначено для этого профиля. Identity аккаунта ChatGPT технически не подтверждена; мониторинг лимитов остаётся заблокированным. Остальные экземпляры останутся открытыми.",
+    "uz-Latn": "\n\nMuhit: {0}\nCODEX_HOME: {1}\nElectron: {2}\n\nBu muhit shu profilga tegishli ekanini tasdiqlang. ChatGPT hisobi identity qiymati texnik tasdiqlanmagan; limit kuzatuvi bloklangan holda qoladi. Boshqa nusxalar ochiq qoladi."
+  },
+  "message.47c40f7547": {
+    "en": "Open Separately",
+    "ru": "Открыть отдельно",
+    "uz-Latn": "Alohida ochish"
+  },
+  "message.f0d7f42301": {
+    "en": "Open Environment · {0}?",
+    "ru": "Открыть окружение · {0}?",
+    "uz-Latn": "Muhitni ochish · {0}?"
+  },
+  "message.5a767395c3": {
+    "en": "\n\nBrings the existing Codex instance forward. A specific window is not selected.",
+    "ru": "\n\nВыводит существующий экземпляр Codex вперёд. Конкретное окно не выбирается.",
+    "uz-Latn": "\n\nMavjud Codex nusxasini oldinga chiqaradi. Alohida oyna tanlanmaydi."
+  },
+  "message.f8baba2ae8": {
+    "en": "\n\nConfirm that this linked environment is intended for this profile.",
+    "ru": "\n\nПодтвердите, что привязанное окружение предназначено для этого профиля.",
+    "uz-Latn": "\n\nBog‘langan muhit shu profilga mo‘ljallanganini tasdiqlang."
+  },
+  "message.6ac8869344": {
+    "en": "Close other Codex instances?",
+    "ru": "Закрыть остальные экземпляры Codex?",
+    "uz-Latn": "Boshqa Codex nusxalari yopilsinmi?"
+  },
+  "message.b9c00fd9e0": {
+    "en": "Close Others & Open",
+    "ru": "Закрыть остальные и открыть",
+    "uz-Latn": "Boshqalarini yopib ochish"
+  },
+  "message.1c0410c771": {
+    "en": "Allow closing “{0}”",
+    "ru": "Разрешаю закрыть «{0}»",
+    "uz-Latn": "“{0}” hisobini yopishga ruxsat beraman"
+  },
+  "message.0444eae0ac": {
+    "en": "Use 1–80 characters without control characters (up to 512 UTF-8 bytes).",
+    "ru": "Используйте 1–80 символов без управляющих знаков (до 512 байт UTF-8).",
+    "uz-Latn": "Boshqaruv belgilarisiz 1–80 ta belgi kiriting (512 bayt UTF-8 gacha)."
+  },
+  "message.24d9bda6f8": {
+    "en": "An account profile with this name already exists.",
+    "ru": "Профиль аккаунта с таким названием уже существует.",
+    "uz-Latn": "Bu nomli hisob profili mavjud."
+  },
+  "message.0f20c66c33": {
+    "en": "This profile no longer exists. Refresh the list and try again.",
+    "ru": "Профиля больше нет. Обновите список и повторите.",
+    "uz-Latn": "Bu profil endi mavjud emas. Ro‘yxatni yangilab, qayta urinib ko‘ring."
+  },
+  "message.72ae99f8b5": {
+    "en": "Profile metadata is damaged. Changes are blocked to protect your data.",
+    "ru": "Метаданные профилей повреждены. Изменения заблокированы для защиты данных.",
+    "uz-Latn": "Profil metama’lumoti buzilgan. Ma’lumotlarni himoyalash uchun o‘zgarishlar bloklandi."
+  },
+  "message.cf04b8b855": {
+    "en": "These profiles were saved by a newer app. Update CodexSwoop before editing.",
+    "ru": "Профили сохранены более новой версией. Перед изменением обновите CodexSwoop.",
+    "uz-Latn": "Profillar yangi versiyada saqlangan. O‘zgartirishdan oldin CodexSwoop ilovasini yangilang."
+  },
+  "message.2d9efee894": {
+    "en": "The profile storage location is unsafe. Symbolic links are not supported.",
+    "ru": "Небезопасное расположение хранилища. Символические ссылки не поддерживаются.",
+    "uz-Latn": "Profil saqlash joyi xavfsiz emas. Ramziy havolalar qo‘llab-quvvatlanmaydi."
+  },
+  "message.ae3e2b0895": {
+    "en": "Another CodexSwoop process is updating profiles. Try again.",
+    "ru": "Другой процесс CodexSwoop обновляет профили. Повторите позже.",
+    "uz-Latn": "Boshqa CodexSwoop jarayoni profillarni yangilamoqda. Keyinroq urinib ko‘ring."
+  },
+  "message.4f1a31a200": {
+    "en": "Profile storage is unavailable. Check disk space and folder permissions.",
+    "ru": "Хранилище профилей недоступно. Проверьте место на диске и права каталога.",
+    "uz-Latn": "Profil saqlash joyi mavjud emas. Diskdagi joy va papka ruxsatlarini tekshiring."
+  },
+  "message.923b5dcf1c": {
+    "en": "No valid metadata backup is available. Your existing files have been preserved.",
+    "ru": "Корректной копии метаданных нет. Существующие файлы сохранены.",
+    "uz-Latn": "Yaroqli metama’lumot zaxirasi yo‘q. Mavjud fayllar saqlandi."
+  },
+  "message.0303e18246": {
+    "en": "Not connected",
+    "ru": "Не подключено",
+    "uz-Latn": "Ulanmagan"
+  },
+  "message.2444bd5ab3": {
+    "en": "Environment linked",
+    "ru": "Окружение привязано",
+    "uz-Latn": "Muhit bog‘langan"
+  },
+  "message.4585bf8efa": {
+    "en": "Verification required",
+    "ru": "Нужна проверка",
+    "uz-Latn": "Tekshirish kerak"
+  },
+  "message.11aa986ff4": {
+    "en": "Account verified",
+    "ru": "Аккаунт проверен",
+    "uz-Latn": "Hisob tekshirilgan"
+  },
+  "message.9234069589": {
+    "en": "Active",
+    "ru": "Активен",
+    "uz-Latn": "Faol"
+  },
+  "message.0fcfb12dfa": {
+    "en": "Authentication required",
+    "ru": "Нужен вход",
+    "uz-Latn": "Kirish kerak"
+  },
+  "message.b802bd2f80": {
+    "en": "Account mismatch",
+    "ru": "Аккаунт не совпадает",
+    "uz-Latn": "Hisob mos emas"
+  },
+  "message.54a0e8c17e": {
+    "en": "Error",
+    "ru": "Ошибка",
+    "uz-Latn": "Xato"
+  },
+  "message.57ce189a39": {
+    "en": "Choose the original supported environment directories. Paths must be absolute and canonical.",
+    "ru": "Выберите исходные поддерживаемые каталоги окружения. Пути должны быть абсолютными и каноническими.",
+    "uz-Latn": "Asl qo‘llab-quvvatlanadigan muhit papkalarini tanlang. Yo‘llar mutlaq va kanonik bo‘lishi kerak."
+  },
+  "message.05a64cfe86": {
+    "en": "The environment is missing. No directory was recreated and no sign-in was started.",
+    "ru": "Окружение отсутствует. Каталоги не создавались, вход не начинался.",
+    "uz-Latn": "Muhit yo‘q. Papkalar qayta yaratilmadi, kirish boshlanmadi."
+  },
+  "message.76263ac694": {
+    "en": "Environment ownership, permissions or symbolic links are unsafe. Nothing was changed.",
+    "ru": "Небезопасные владелец, права или символические ссылки окружения. Изменений нет.",
+    "uz-Latn": "Muhit egasi, ruxsatlari yoki ramziy havolalari xavfsiz emas. Hech narsa o‘zgarmadi."
+  },
+  "message.9611212cdd": {
+    "en": "The environment changed since verification. Review and link it again; automatic repair is unavailable.",
+    "ru": "Окружение изменилось после проверки. Проверьте и привяжите заново; автоматическое исправление недоступно.",
+    "uz-Latn": "Muhit tekshiruvdan keyin o‘zgardi. Ko‘rib chiqib, qayta bog‘lang; avtomatik tuzatish mavjud emas."
+  },
+  "message.547855e3a8": {
+    "en": "This environment or one of its directories is already linked to a profile.",
+    "ru": "Окружение или один из его каталогов уже привязаны к профилю.",
+    "uz-Latn": "Muhit yoki uning papkalaridan biri allaqachon profilga bog‘langan."
+  },
+  "message.8cad1ab7dd": {
+    "en": "Link an environment to this profile first.",
+    "ru": "Сначала привяжите окружение к этому профилю.",
+    "uz-Latn": "Avval bu profilga muhit bog‘lang."
+  },
+  "message.a2e174d314": {
+    "en": "Disconnect the environment before removing this profile. Environment data will be retained.",
+    "ru": "Перед удалением профиля отключите окружение. Данные окружения сохранятся.",
+    "uz-Latn": "Profilni olib tashlashdan oldin muhitni ajrating. Muhit ma’lumotlari saqlanadi."
+  },
+  "message.c09bd6c0fb": {
+    "en": "Environment metadata is damaged or unsupported. Existing files have been preserved.",
+    "ru": "Метаданные окружения повреждены или не поддерживаются. Существующие файлы сохранены.",
+    "uz-Latn": "Muhit metama’lumoti buzilgan yoki qo‘llab-quvvatlanmaydi. Mavjud fayllar saqlandi."
+  },
+  "message.fd203e3b54": {
+    "en": "Environment metadata requires a newer CodexSwoop version. It cannot be edited or recovered over.",
+    "ru": "Для этих метаданных нужна новая версия CodexSwoop. Изменение и восстановление поверх них запрещены.",
+    "uz-Latn": "Bu metama’lumot uchun yangi CodexSwoop versiyasi kerak. Uni o‘zgartirish yoki ustidan tiklash taqiqlangan."
+  },
+  "message.527713b41f": {
+    "en": "Account identity cannot be verified. Linking directories does not confirm sign-in.",
+    "ru": "Identity аккаунта не подтверждена. Привязка каталогов не подтверждает вход.",
+    "uz-Latn": "Hisob identity qiymati tasdiqlanmagan. Papkalarni bog‘lash kirishni tasdiqlamaydi."
+  },
+  "message.8ca62aa4f2": {
+    "en": "This Codex build has not been verified. Switching requires a new compatibility review.",
+    "ru": "Эта сборка Codex не проверена. Для переключения нужна новая проверка совместимости.",
+    "uz-Latn": "Bu Codex yig‘ilmasi tekshirilmagan. Almashish uchun moslikni qayta tekshirish kerak."
+  },
+  "message.54dbf3f981": {
+    "en": "A unique Codex instance could not be associated with the environment. No application was closed.",
+    "ru": "Не удалось однозначно сопоставить экземпляр Codex с окружением. Приложения не закрывались.",
+    "uz-Latn": "Codex nusxasini muhitga aniq moslab bo‘lmadi. Ilovalar yopilmadi."
+  },
+  "message.193149e5c0": {
+    "en": "The selected Codex instance changed. The operation stopped.",
+    "ru": "Выбранный экземпляр Codex изменился. Операция остановлена.",
+    "uz-Latn": "Tanlangan Codex nusxasi o‘zgardi. Amal to‘xtatildi."
+  },
+  "message.b41732cbc9": {
+    "en": "Codex received the launch request, but its GUI and backend ownership could not be confirmed within 20 seconds. Use Check Result to observe it again without relaunching.",
+    "ru": "Запрос запуска передан Codex, но принадлежность GUI и backend не подтверждена за 20 секунд. Используйте «Проверить результат» без повторного запуска.",
+    "uz-Latn": "Ochish so‘rovi Codex ilovasiga yuborildi, lekin GUI va backend egaligi 20 soniyada tasdiqlanmadi. Qayta ochmasdan «Natijani tekshirish»dan foydalaning."
+  },
+  "message.314e6d47e7": {
+    "en": "Codex launch could not be confirmed. No automatic retry was attempted.",
+    "ru": "Запуск Codex не подтверждён. Автоматический повтор не выполнялся.",
+    "uz-Latn": "Codex ochilishi tasdiqlanmadi. Avtomatik qayta urinish bajarilmadi."
+  },
+  "message.30d80dc546": {
+    "en": "Application recovery requires your review. All environment data has been retained.",
+    "ru": "Восстановление требует вашей проверки. Все данные окружения сохранены.",
+    "uz-Latn": "Tiklash uchun tekshiruvingiz kerak. Muhitning barcha ma’lumotlari saqlandi."
+  },
+  "message.93e95e0c73": {
+    "en": "Switching is blocked until account identity and two-account integration are verified.",
+    "ru": "Переключение заблокировано до подтверждения identity аккаунта и интеграции двух аккаунтов.",
+    "uz-Latn": "Hisob identity qiymati va ikki hisob integratsiyasi tasdiqlanmaguncha almashish bloklangan."
+  },
+  "message.0d7cf20cc5": {
+    "en": "Managed storage already exists or is retained after an interrupted preparation. Nothing was overwritten or removed.",
+    "ru": "Управляемое хранилище уже существует или сохранено после прерванной подготовки. Ничего не перезаписано и не удалено.",
+    "uz-Latn": "Boshqariladigan saqlash muhiti mavjud yoki uzilgan tayyorlashdan qolgan. Hech narsa qayta yozilmadi va o‘chirilmadi."
+  },
+  "message.90366fe7c8": {
+    "en": "The reviewed official Codex application is unavailable. No alternative application was launched.",
+    "ru": "Проверенное официальное приложение Codex недоступно. Другое приложение не запускалось.",
+    "uz-Latn": "Tekshirilgan rasmiy Codex ilovasi mavjud emas. Boshqa ilova ochilmadi."
+  },
+  "message.cfeaf63d44": {
+    "en": "The target requires official authentication. No sign-in was started.",
+    "ru": "Нужна официальная авторизация в целевом аккаунте. Вход не запускался.",
+    "uz-Latn": "Tanlangan hisobga rasmiy kirish kerak. Kirish boshlanmadi."
+  },
+  "message.6bbc80c8c4": {
+    "en": "The verified account does not match this profile. The operation stopped.",
+    "ru": "Проверенный аккаунт не соответствует профилю. Операция остановлена.",
+    "uz-Latn": "Tekshirilgan hisob profilga mos emas. Amal to‘xtatildi."
+  },
+  "message.dd25f0255a": {
+    "en": "Account verification failed. No account details were logged.",
+    "ru": "Проверка аккаунта не удалась. Данные аккаунта не записывались в журнал.",
+    "uz-Latn": "Hisob tekshiruvi bajarilmadi. Hisob ma’lumotlari jurnalga yozilmadi."
+  },
+  "message.4e774de9dc": {
+    "en": "Credential-store isolation has not been established for this operation.",
+    "ru": "Изоляция хранилища учётных данных для этой операции не подтверждена.",
+    "uz-Latn": "Bu amal uchun kirish ma’lumotlari saqlash joyining ajratilishi tasdiqlanmagan."
+  },
+  "message.60717ca80a": {
+    "en": "Accessibility permission is missing. No system permission request was made.",
+    "ru": "Нет разрешения Универсального доступа. Системный запрос разрешения не выполнялся.",
+    "uz-Latn": "Maxsus imkoniyatlar ruxsati yo‘q. Tizim ruxsat so‘rovi yuborilmadi."
+  },
+  "message.12fb36cc76": {
+    "en": "Window ownership cannot be confirmed. No application was activated.",
+    "ru": "Принадлежность окна не подтверждена. Приложения не активировались.",
+    "uz-Latn": "Oyna egaligi tasdiqlanmadi. Ilovalar faollashtirilmadi."
+  },
+  "message.6b537cf877": {
+    "en": "Account setup changed. Review the current profiles and confirm a fresh operation.",
+    "ru": "Настройка аккаунтов изменилась. Проверьте текущие профили и подтвердите новую операцию.",
+    "uz-Latn": "Hisoblar sozlashi o‘zgardi. Joriy profillarni tekshirib, yangi amalni tasdiqlang."
+  },
+  "message.baf25268c0": {
+    "en": "An account setup operation needs review. Finish it or restore its verified metadata backup before continuing. No Codex data was changed.",
+    "ru": "Нужна проверка операции настройки. Завершите её или восстановите проверенную копию метаданных. Данные Codex не менялись.",
+    "uz-Latn": "Sozlash amalini tekshirish kerak. Uni tugating yoki tekshirilgan metama’lumot zaxirasini tiklang. Codex ma’lumotlari o‘zgarmadi."
+  },
+  "message.c523467a88": {
+    "en": "The setup journal or backup is inconsistent. Changes are blocked; existing files are preserved.",
+    "ru": "Журнал настройки или копия несогласованы. Изменения заблокированы; файлы сохранены.",
+    "uz-Latn": "Sozlash jurnali yoki zaxira mos emas. O‘zgarishlar bloklandi; fayllar saqlandi."
+  },
+  "message.426f610b55": {
+    "en": "A verified setup backup could not be created. No active metadata was changed.",
+    "ru": "Не удалось создать проверенную копию настройки. Активные метаданные не менялись.",
+    "uz-Latn": "Sozlashning tekshirilgan zaxirasini yaratib bo‘lmadi. Faol metama’lumot o‘zgarmadi."
+  },
+  "message.cea499aadc": {
+    "en": "Setup could not be saved. Review its state before trying again. Existing Codex files remain on disk.",
+    "ru": "Не удалось сохранить настройку. Проверьте её состояние перед повтором. Файлы Codex остались на диске.",
+    "uz-Latn": "Sozlashni saqlab bo‘lmadi. Qayta urinishdan oldin holatini tekshiring. Codex fayllari diskda qoldi."
+  },
+  "message.091bfcfb1f": {
+    "en": "This original profile UUID or environment is already in use. It cannot be restored twice.",
+    "ru": "Исходный UUID профиля или окружение уже используются. Повторное восстановление запрещено.",
+    "uz-Latn": "Asl profil UUID qiymati yoki muhit ishlatilmoqda. Ikki marta tiklash taqiqlangan."
+  },
+  "message.82268712b8": {
+    "en": "The saved environment does not match its original UUID, directories or supported format. Nothing was moved or imported.",
+    "ru": "Сохранённое окружение не соответствует исходному UUID, каталогам или формату. Ничего не перемещено и не импортировано.",
+    "uz-Latn": "Saqlangan muhit asl UUID, papkalar yoki formatga mos emas. Hech narsa ko‘chirilmadi va import qilinmadi."
+  },
+  "message.2a0870a04d": {
+    "en": "Activate its Codex instance or launch its linked environment",
+    "ru": "Активировать экземпляр Codex или запустить привязанное окружение",
+    "uz-Latn": "Codex nusxasini faollashtirish yoki bog‘langan muhitni ochish"
+  },
+  "message.cb2ee77508": {
+    "en": "Close other Codex instances and open this account",
+    "ru": "Закрыть остальные экземпляры Codex и открыть этот аккаунт",
+    "uz-Latn": "Boshqa Codex nusxalarini yopib, shu hisobni ochish"
+  },
+  "message.14d704f31c": {
+    "en": "Account-scoped opening requires technical identity verification. Visual confirmation is insufficient.",
+    "ru": "Открытие с подтверждением аккаунта требует технической проверки identity. Визуального подтверждения недостаточно.",
+    "uz-Latn": "Hisobga yo‘naltirilgan ochish texnik identity tekshiruvini talab qiladi. Vizual tasdiq yetarli emas."
+  },
+  "message.0186eaf5f9": {
+    "en": "The account is already open. Its window must be confirmed before activation; no duplicate was launched.",
+    "ru": "Аккаунт уже открыт. Перед активацией нужно подтвердить его окно; дубликат не запускался.",
+    "uz-Latn": "Hisob ochilgan. Faollashtirishdan oldin uning oynasi tasdiqlanishi kerak; takroriy nusxa ochilmadi."
+  },
+  "message.5ed251166f": {
+    "en": "A unique owned window is unavailable. No alternative window or launch was selected.",
+    "ru": "Однозначно принадлежащее окно недоступно. Другое окно и запуск не выбирались.",
+    "uz-Latn": "Egasi aniq oyna mavjud emas. Boshqa oyna yoki ochish tanlanmadi."
+  },
+  "message.18b6768fd3": {
+    "en": "Codex instance ownership is ambiguous. No unknown instance will be closed.",
+    "ru": "Принадлежность экземпляра Codex неоднозначна. Неизвестные экземпляры закрываться не будут.",
+    "uz-Latn": "Codex nusxasining egaligi noaniq. Noma’lum nusxalar yopilmaydi."
+  },
+  "message.36be42b4fd": {
+    "en": "Accessibility permission is required to address the confirmed window. No permission request was made.",
+    "ru": "Для обращения к подтверждённому окну нужно разрешение Универсального доступа. Запрос разрешения не выполнялся.",
+    "uz-Latn": "Tasdiqlangan oynaga murojaat qilish uchun Maxsus imkoniyatlar ruxsati kerak. Ruxsat so‘ralmadi."
+  },
+  "message.3100fee388": {
+    "en": "A Codex instance changed. Review the current instances before trying again.",
+    "ru": "Экземпляр Codex изменился. Проверьте текущие экземпляры перед повтором.",
+    "uz-Latn": "Codex nusxasi o‘zgardi. Qayta urinishdan oldin joriy nusxalarni tekshiring."
+  },
+  "message.2b5386b862": {
+    "en": "The selected account could not be opened. No automatic retry was attempted.",
+    "ru": "Не удалось открыть выбранный аккаунт. Автоматический повтор не выполнялся.",
+    "uz-Latn": "Tanlangan hisobni ochib bo‘lmadi. Avtomatik qayta urinish bajarilmadi."
+  },
+  "message.0ef2e8f506": {
+    "en": "Normal exit was not confirmed within ten seconds. No force quit or target launch followed.",
+    "ru": "Штатный выход не подтверждён за десять секунд. Принудительное закрытие и запуск цели не выполнялись.",
+    "uz-Latn": "Oddiy chiqish o‘n soniyada tasdiqlanmadi. Majburiy yopish yoki maqsadni ochish bajarilmadi."
+  },
+  "message.86d7fe1e18": {
+    "en": "Another account operation is in progress.",
+    "ru": "Выполняется другая операция с аккаунтом.",
+    "uz-Latn": "Hisob bilan boshqa amal bajarilmoqda."
+  },
+  "message.3a5cedce65": {
+    "en": "Task activity is unknown. Explicit interruption confirmation is required.",
+    "ru": "Активность задач неизвестна. Нужно явное подтверждение прерывания.",
+    "uz-Latn": "Vazifa faolligi noma’lum. To‘xtatishga aniq tasdiq kerak."
+  },
+  "message.abb4a62b3a": {
+    "en": "The operation was cancelled.",
+    "ru": "Операция отменена.",
+    "uz-Latn": "Amal bekor qilindi."
+  },
+  "message.275e5420ee": {
+    "en": "Some instances closed, but the operation did not complete. Review them manually; no automatic restoration was attempted.",
+    "ru": "Некоторые экземпляры закрылись, но операция не завершилась. Проверьте их вручную; автоматического восстановления не было.",
+    "uz-Latn": "Ayrim nusxalar yopildi, lekin amal tugamadi. Ularni qo‘lda tekshiring; avtomatik tiklash bajarilmadi."
+  },
+  "message.543aeaca22": {
+    "en": "An action may have taken effect. Review Codex before another operation; no automatic recovery was attempted.",
+    "ru": "Запрос мог выполниться. Перед новой операцией проверьте Codex; автоматическое восстановление не выполнялось.",
+    "uz-Latn": "So‘rov bajarilgan bo‘lishi mumkin. Yangi amaldan oldin Codex ilovasini tekshiring; avtomatik tiklash bajarilmadi."
+  },
+  "message.a7f4e51df7": {
+    "en": "Close Others is blocked: a Codex instance has no unique registered environment owner (possibly retained reserve A or another app copy). Its PID, generation, signature and both directory roots must be attributable. A retained backup reference is accepted only after fresh marker, directory and live process checks; a historical PID cannot authorize closing it. Review and close it manually if intended. Open Separately remains available.",
+    "ru": "Закрытие остальных заблокировано: экземпляр Codex не имеет однозначного зарегистрированного владельца окружения (возможно, резервное A или другая копия приложения). Нужны проверенные PID, поколение, подпись и оба каталога. Сохранённая привязка принимается только после свежих проверок маркера, каталогов и процессов; старый PID не разрешает закрытие. Проверьте и при необходимости закройте экземпляр вручную. «Открыть отдельно» остаётся доступным.",
+    "uz-Latn": "Boshqalarini yopish bloklandi: Codex nusxasining ro‘yxatdan o‘tgan muhit egasi aniq emas (zaxira A yoki ilovaning boshqa nusxasi bo‘lishi mumkin). PID, avlod, imzo va ikkala papka tekshirilishi kerak. Saqlangan bog‘lanish faqat marker, papkalar va jarayonlar qayta tekshirilgach qabul qilinadi; eski PID yopishga ruxsat bermaydi. Tekshirib, kerak bo‘lsa nusxani qo‘lda yoping. «Alohida ochish» mavjud qoladi."
+  },
+  "message.b3140d0e6e": {
+    "en": "Closing the Standard External account requires explicit primary-account consent and an approved lifecycle adapter.",
+    "ru": "Для закрытия Standard External нужны явное согласие на закрытие основного аккаунта и разрешённый lifecycle-адаптер.",
+    "uz-Latn": "Standard External nusxasini yopish uchun asosiy hisobni yopishga aniq rozilik va ruxsat etilgan lifecycle adapteri kerak."
+  },
+  "message.59e231637b": {
+    "en": "Reserve A · retained research environment",
+    "ru": "Резервное A · сохранённое исследовательское окружение",
+    "uz-Latn": "Zaxira A · saqlangan tadqiqot muhiti"
+  },
+  "message.60b621bd7e": {
+    "en": "This may interrupt running tasks and unsaved work.",
+    "ru": "Это может прервать работающие задачи и несохранённую работу.",
+    "uz-Latn": "Bu ishlayotgan vazifalar va saqlanmagan ishlarni to‘xtatishi mumkin."
+  },
+  "message.11eb59c448": {
+    "en": "Instances to close: {0}. Unrecognized instances: {1}.",
+    "ru": "Будут закрыты: {0}. Неопознанные экземпляры: {1}.",
+    "uz-Latn": "Yopiladigan nusxalar: {0}. Aniqlanmagan nusxalar: {1}."
+  },
+  "message.53e2b9f9d3": {
+    "en": "Environment to keep open: {0}.",
+    "ru": "Оставить открытым окружение: {0}.",
+    "uz-Latn": "Ochiq qoldiriladigan muhit: {0}."
+  },
+  "message.dae991678d": {
+    "en": "Confirm this profile's environment binding. ChatGPT identity is not technically verified by opening an environment; Usage keeps its independent checks.",
+    "ru": "Подтвердите привязку окружения к профилю. Открытие окружения не подтверждает техническую identity ChatGPT; для лимитов действуют отдельные проверки.",
+    "uz-Latn": "Muhitning profilga bog‘lanishini tasdiqlang. Muhitni ochish ChatGPT texnik identity qiymatini tasdiqlamaydi; limitlar uchun alohida tekshiruvlar amal qiladi."
+  },
+  "message.fc25a80dbe": {
+    "en": "Target CODEX_HOME: {0}\nTarget Electron data: {1}",
+    "ru": "Целевой CODEX_HOME: {0}\nДанные Electron: {1}",
+    "uz-Latn": "Maqsad CODEX_HOME: {0}\nElectron ma’lumotlari: {1}"
+  },
+  "message.ef191576ee": {
+    "en": "{0} · PID {1} · Activity: {2}{3}",
+    "ru": "{0} · PID {1} · Активность: {2}{3}",
+    "uz-Latn": "{0} · PID {1} · Faollik: {2}{3}"
+  },
+  "message.daf4974f13": {
+    "en": "Switching is unavailable until the integration safety gates pass.",
+    "ru": "Переключение недоступно до прохождения проверок безопасности интеграции.",
+    "uz-Latn": "Integratsiya xavfsizlik tekshiruvlari o‘tmaguncha almashish mavjud emas."
+  },
+  "message.ea89d4c0ad": {
+    "en": "Confirm this operation before continuing.",
+    "ru": "Подтвердите эту операцию перед продолжением.",
+    "uz-Latn": "Davom etishdan oldin bu amalni tasdiqlang."
+  },
+  "message.be04b80336": {
+    "en": "The target account could not be confirmed.",
+    "ru": "Не удалось подтвердить целевой аккаунт.",
+    "uz-Latn": "Tanlangan hisobni tasdiqlab bo‘lmadi."
+  },
+  "message.732ecec0b2": {
+    "en": "Codex did not finish exiting within ten seconds. No force quit or restart was attempted.",
+    "ru": "Codex не завершил выход за десять секунд. Принудительное закрытие и перезапуск не выполнялись.",
+    "uz-Latn": "Codex o‘n soniyada chiqmadi. Majburiy yopish yoki qayta ochish bajarilmadi."
+  },
+  "message.410984c2e3": {
+    "en": "Codex activity kept changing. The operation stopped before interruption.",
+    "ru": "Активность Codex продолжала меняться. Операция остановлена до прерывания.",
+    "uz-Latn": "Codex faolligi o‘zgarishda davom etdi. Amal to‘xtatishdan oldin to‘xtadi."
+  },
+  "message.2f22292713": {
+    "en": "Normal termination could not be confirmed. Review the existing instance.",
+    "ru": "Штатное закрытие не подтверждено. Проверьте работающий экземпляр.",
+    "uz-Latn": "Oddiy yopish tasdiqlanmadi. Ishlayotgan nusxani tekshiring."
+  },
+  "message.faf2e32a37": {
+    "en": "The launch failed. No automatic retry was attempted.",
+    "ru": "Запуск не удался. Автоматический повтор не выполнялся.",
+    "uz-Latn": "Ochish bajarilmadi. Avtomatik qayta urinish bajarilmadi."
+  },
+  "message.7280996b1a": {
+    "en": "The requested Codex instance could not be confirmed in the foreground. No retry or restart was attempted.",
+    "ru": "Запрошенный экземпляр Codex не подтверждён на переднем плане. Повтор и перезапуск не выполнялись.",
+    "uz-Latn": "So‘ralgan Codex nusxasi oldingi planda tasdiqlanmadi. Qayta urinish yoki qayta ochish bajarilmadi."
+  },
+  "message.85bed1aa51": {
+    "en": "The account operation failed. Existing data was retained; review the application state.",
+    "ru": "Операция с аккаунтом не удалась. Данные сохранены; проверьте состояние приложения.",
+    "uz-Latn": "Hisob amali bajarilmadi. Ma’lumotlar saqlandi; ilova holatini tekshiring."
+  },
+  "message.53980467fa": {
+    "en": "Switch Anyway",
+    "ru": "Всё равно переключить",
+    "uz-Latn": "Baribir almashtirish"
+  },
+  "message.46c6de9805": {
+    "en": "CodexSwoop cannot verify whether Codex has unfinished tasks. Switching accounts may interrupt their execution. Are you sure you want to continue?",
+    "ru": "CodexSwoop не может проверить, есть ли у Codex незавершённые задачи. Переключение аккаунта может прервать их. Продолжить?",
+    "uz-Latn": "CodexSwoop Codex ilovasida tugamagan vazifalar borligini tekshira olmaydi. Hisobni almashtirish ularni to‘xtatishi mumkin. Davom etilsinmi?"
+  },
+  "message.2aa0810102": {
+    "en": "Activity status: Unknown. Check Codex before continuing. The status will be checked again before Codex is closed.",
+    "ru": "Состояние активности: неизвестно. Проверьте Codex перед продолжением. Перед закрытием состояние будет проверено снова.",
+    "uz-Latn": "Faollik holati: noma’lum. Davom etishdan oldin Codex ilovasini tekshiring. Yopishdan oldin holat yana tekshiriladi."
+  },
+  "message.87ac78e2c2": {
+    "en": "Codex has unfinished tasks. Switching accounts may interrupt their execution. Are you sure you want to continue?",
+    "ru": "В Codex есть незавершённые задачи. Переключение аккаунта может прервать их. Продолжить?",
+    "uz-Latn": "Codex ilovasida tugamagan vazifalar bor. Hisobni almashtirish ularni to‘xtatishi mumkin. Davom etilsinmi?"
+  },
+  "message.1da138e845": {
+    "en": "Detected tasks: {0} (local: {1}, cloud: {2}, execution location unknown: {3}).",
+    "ru": "Обнаружено задач: {0} (локальных: {1}, облачных: {2}, место выполнения неизвестно: {3}).",
+    "uz-Latn": "Topilgan vazifalar: {0} (mahalliy: {1}, bulutda: {2}, bajarilish joyi noma’lum: {3})."
+  },
+  "message.66b08526db": {
+    "en": "Awaiting your approval: {0}. Awaiting your input: {1}. Background processes: {2}.",
+    "ru": "Ожидают вашего разрешения: {0}. Ожидают ввода: {1}. Фоновых процессов: {2}.",
+    "uz-Latn": "Ruxsatingizni kutmoqda: {0}. Kiritishni kutmoqda: {1}. Fon jarayonlari: {2}."
+  },
+  "message.2185869f0b": {
+    "en": "Local execution may stop when Codex closes. Cloud execution has a different interruption risk; its continuation is not guaranteed.",
+    "ru": "Локальное выполнение может остановиться при закрытии Codex. Риск прерывания облачных задач отличается; их продолжение не гарантировано.",
+    "uz-Latn": "Codex yopilganda mahalliy bajarilish to‘xtashi mumkin. Bulutdagi ishning to‘xtash xavfi boshqacha; davom etishi kafolatlanmaydi."
+  },
+  "message.8a58f94ff3": {
+    "en": "Coverage is incomplete; additional operations may exist.",
+    "ru": "Проверка охватывает не всё; возможны дополнительные операции.",
+    "uz-Latn": "Tekshiruv to‘liq qamramaydi; qo‘shimcha amallar mavjud bo‘lishi mumkin."
+  },
+  "message.4ead23a313": {
+    "en": "Opens the environment associated with this profile. ChatGPT account identity has not been independently verified.",
+    "ru": "Открывает окружение этого профиля. Identity аккаунта ChatGPT независимо не подтверждена.",
+    "uz-Latn": "Shu profil muhitini ochadi. ChatGPT hisobi identity qiymati mustaqil tasdiqlanmagan."
+  },
+  "message.958a2bd790": {
+    "en": "Environment activation awaits a separately approved activation-only trial.",
+    "ru": "Активация окружения ожидает отдельно разрешённого теста только активации.",
+    "uz-Latn": "Muhitni faollashtirish alohida ruxsat etilgan faollashtirish sinovini kutmoqda."
+  },
+  "message.078326b85f": {
+    "en": "This environment is not running. Launch requires a separate action and its own checks.",
+    "ru": "Окружение не запущено. Запуск требует отдельного действия и проверок.",
+    "uz-Latn": "Muhit ishlamayapti. Ochish uchun alohida amal va tekshiruvlar kerak."
+  },
+  "message.af3dfd842a": {
+    "en": "The environment, process or window changed. Review it before trying again.",
+    "ru": "Окружение, процесс или окно изменились. Проверьте их перед повтором.",
+    "uz-Latn": "Muhit, jarayon yoki oyna o‘zgardi. Qayta urinishdan oldin tekshiring."
+  },
+  "message.91b956370c": {
+    "en": "Confirm this specific environment before opening it.",
+    "ru": "Подтвердите открытие именно этого окружения.",
+    "uz-Latn": "Aynan shu muhitni ochishni tasdiqlang."
+  },
+  "message.d725b066a6": {
+    "en": "Verification error",
+    "ru": "Ошибка проверки",
+    "uz-Latn": "Tekshiruv xatosi"
+  },
+  "message.5b12ebbdb3": {
+    "en": "Live usage is disabled. A supported, account-verified transport needs separate approval.",
+    "ru": "Живые лимиты отключены. Нужны поддерживаемое соединение с подтверждённым аккаунтом и отдельное разрешение.",
+    "uz-Latn": "Jonli limitlar o‘chirilgan. Hisobi tasdiqlangan qo‘llab-quvvatlanadigan ulanish va alohida ruxsat kerak."
+  },
+  "message.47d20f9886": {
+    "en": "Usage data is unavailable.",
+    "ru": "Данные лимитов недоступны.",
+    "uz-Latn": "Limit ma’lumotlari mavjud emas."
+  },
+  "message.0e257d4445": {
+    "en": "The source account could not be verified.",
+    "ru": "Аккаунт источника не подтверждён.",
+    "uz-Latn": "Manba hisobi tasdiqlanmagan."
+  },
+  "message.438dd16a76": {
+    "en": "Sign-in is required in the official app.",
+    "ru": "Войдите в официальном приложении.",
+    "uz-Latn": "Rasmiy ilovada kiring."
+  },
+  "message.e4107a4e39": {
+    "en": "This protocol version has not been reviewed.",
+    "ru": "Эта версия протокола не проверена.",
+    "uz-Latn": "Bu protokol versiyasi tekshirilmagan."
+  },
+  "message.8b95130155": {
+    "en": "The source returned invalid usage data.",
+    "ru": "Источник вернул некорректные данные лимитов.",
+    "uz-Latn": "Manba noto‘g‘ri limit ma’lumotini qaytardi."
+  },
+  "message.311398edea": {
+    "en": "The usage service is unavailable.",
+    "ru": "Сервис лимитов недоступен.",
+    "uz-Latn": "Limit xizmati mavjud emas."
+  },
+  "message.0f49303465": {
+    "en": "The usage request timed out.",
+    "ru": "Время запроса лимитов истекло.",
+    "uz-Latn": "Limit so‘rovi vaqti tugadi."
+  },
+  "message.f103e3036e": {
+    "en": "Refresh is temporarily rate limited.",
+    "ru": "Обновление временно ограничено числом запросов.",
+    "uz-Latn": "Yangilash so‘rovlar soni sabab vaqtincha cheklangan."
+  },
+  "message.2975132481": {
+    "en": "Weekly",
+    "ru": "За неделю",
+    "uz-Latn": "Haftalik"
+  },
+  "message.96d15cf84b": {
+    "en": "{0} min",
+    "ru": "{0} мин",
+    "uz-Latn": "{0} daq"
+  },
+  "message.fa0fc3a9fe": {
+    "en": "Unknown window",
+    "ru": "Неизвестный интервал",
+    "uz-Latn": "Noma’lum davr"
+  },
+  "message.eea70ce79c": {
+    "en": "100% left",
+    "ru": "Осталось 100%",
+    "uz-Latn": "100% qoldi"
+  },
+  "message.c6c3f80446": {
+    "en": "0% left",
+    "ru": "Осталось 0%",
+    "uz-Latn": "0% qoldi"
+  },
+  "message.3eebcc98bb": {
+    "en": "% left",
+    "ru": "% осталось",
+    "uz-Latn": "% qoldi"
+  },
+  "message.2c23be5fbf": {
+    "en": "Additional · {0}",
+    "ru": "Дополнительно · {0}",
+    "uz-Latn": "Qo‘shimcha · {0}"
+  },
+  "message.dc95ee0080": {
+    "en": "A verified account and transport are required.",
+    "ru": "Нужны подтверждённые аккаунт и соединение.",
+    "uz-Latn": "Tasdiqlangan hisob va ulanish kerak."
+  },
+  "message.e567a39ada": {
+    "en": "Quota remaining. Last successful update below.",
+    "ru": "Оставшийся лимит. Последнее успешное обновление ниже.",
+    "uz-Latn": "Qolgan limit. Oxirgi muvaffaqiyatli yangilanish quyida."
+  },
+  "message.dcd161ced4": {
+    "en": "Cached values are outdated; refresh before relying on them.",
+    "ru": "Кеш устарел; обновите данные перед использованием.",
+    "uz-Latn": "Kesh eskirgan; foydalanishdan oldin yangilang."
+  },
+  "message.da7db9f601": {
+    "en": "No verified usage snapshot yet.",
+    "ru": "Подтверждённого снимка лимитов пока нет.",
+    "uz-Latn": "Hozircha tasdiqlangan limit holati yo‘q."
+  },
+  "message.ec5942ca5b": {
+    "en": "Checking the source and fetching usage…",
+    "ru": "Проверка источника и получение лимитов…",
+    "uz-Latn": "Manba tekshirilmoqda va limitlar olinmoqda…"
+  },
+  "message.6527e566f5": {
+    "en": "The source supplied no quota windows.",
+    "ru": "Источник не предоставил интервалы лимитов.",
+    "uz-Latn": "Manba limit davrlarini taqdim etmadi."
+  },
+  "message.ecfea25ef6": {
+    "en": "NO-GO: metadata changed. Prepare and review a new preview.",
+    "ru": "NO-GO: метаданные изменились. Подготовьте и проверьте новый предварительный результат.",
+    "uz-Latn": "NO-GO: metama’lumot o‘zgardi. Yangi oldindan ko‘rish natijasini tayyorlab tekshiring."
+  },
+  "message.13ca412a22": {
+    "en": "NO-GO: replacement must match an existing profile and its prepared managed environment.",
+    "ru": "NO-GO: замена должна соответствовать существующему профилю и его подготовленному окружению.",
+    "uz-Latn": "NO-GO: almashtirish mavjud profil va uning tayyorlangan muhitiga mos bo‘lishi kerak."
+  },
+  "message.80fbafe4c9": {
+    "en": "Backup failed. No association replacement was committed.",
+    "ru": "Резервное копирование не удалось. Замена привязки не сохранена.",
+    "uz-Latn": "Zaxiralash bajarilmadi. Bog‘lanishni almashtirish saqlanmadi."
+  },
+  "message.0303835640": {
+    "en": "Replacement failed. The previous association is retained; review before retrying.",
+    "ru": "Замена не удалась. Предыдущая привязка сохранена; проверьте перед повтором.",
+    "uz-Latn": "Almashtirish bajarilmadi. Oldingi bog‘lanish saqlandi; qayta urinishdan oldin tekshiring."
+  },
+  "message.6cd2894127": {
+    "en": "Metadata outcome requires read-only review. Do not retry or restore automatically.",
+    "ru": "Результат записи метаданных требует проверки только чтением. Не повторяйте и не восстанавливайте автоматически.",
+    "uz-Latn": "Metama’lumot yozish natijasini faqat o‘qish orqali tekshirish kerak. Avtomatik takrorlamang yoki tiklamang."
+  },
+  "visual.title": {
+    "en": "Record your visual account check?",
+    "ru": "Записать визуальную проверку аккаунта?",
+    "uz-Latn": "Hisobning vizual tekshiruvi yozilsinmi?"
+  },
+  "visual.confirm": {
+    "en": "I Checked the Account",
+    "ru": "Аккаунт проверен мной",
+    "uz-Latn": "Hisobni tekshirdim"
+  },
+  "visual.detail": {
+    "en": "Check the intended Codex window yourself. This records your observation only; it cannot prove technical identity or enable Usage Monitoring.",
+    "ru": "Самостоятельно проверьте нужное окно Codex. Это только запись вашего наблюдения; она не подтверждает техническую identity и не включает мониторинг лимитов.",
+    "uz-Latn": "Kerakli Codex oynasini o‘zingiz tekshiring. Bu faqat kuzatuvingiz yozuvi; texnik identity qiymatini tasdiqlamaydi va limit kuzatuvini yoqmaydi."
+  },
+  "disconnect.title": {
+    "en": "Disconnect environment reference?",
+    "ru": "Отвязать окружение?",
+    "uz-Latn": "Muhit ajratilsinmi?"
+  },
+  "disconnect.confirm": {
+    "en": "Disconnect",
+    "ru": "Отвязать",
+    "uz-Latn": "Ajratish"
+  },
+  "disconnect.detail": {
+    "en": "Only the Swoop reference is removed. Codex stays running. Environment data and sign-in are retained.",
+    "ru": "Удаляется только привязка Swoop. Codex остаётся открытым. Данные окружения и авторизация сохраняются.",
+    "uz-Latn": "Faqat Swoop bog‘lanishi olib tashlanadi. Codex ishlashda davom etadi. Muhit ma’lumotlari va kirish holati saqlanadi."
+  },
+  "setup.review": {
+    "en": "Review Interrupted Setup…",
+    "ru": "Проверить прерванную настройку…",
+    "uz-Latn": "Uzilgan sozlashni tekshirish…"
+  },
+  "backup.profileTitle": {
+    "en": "Recover Profile Backup…",
+    "ru": "Восстановить копию профилей…",
+    "uz-Latn": "Profillar zaxirasini tiklash…"
+  },
+  "backup.profileDetail": {
+    "en": "Restore the last valid profile backup. It may omit recent changes. Damaged metadata is preserved; inconsistent references block recovery.",
+    "ru": "Восстановить последнюю корректную копию профилей. Недавние изменения могут отсутствовать. Повреждённые метаданные сохраняются; несогласованные привязки блокируют восстановление.",
+    "uz-Latn": "Oxirgi yaroqli profil zaxirasini tiklash. So‘nggi o‘zgarishlar unda bo‘lmasligi mumkin. Buzilgan metama’lumot saqlanadi; mos kelmaydigan bog‘lanishlar tiklashni to‘sadi."
+  },
+  "backup.environmentTitle": {
+    "en": "Recover Environment Metadata…",
+    "ru": "Восстановить метаданные окружений…",
+    "uz-Latn": "Muhit metama’lumotini tiklash…"
+  },
+  "backup.environmentDetail": {
+    "en": "Restore the previous reference list and preserve damaged metadata. Account identity needs verification again. Codex data is unchanged.",
+    "ru": "Восстановить предыдущий список привязок, сохранив повреждённые метаданные. Identity аккаунта потребуется проверить заново. Данные Codex не меняются.",
+    "uz-Latn": "Oldingi bog‘lanishlar ro‘yxati tiklanadi, buzilgan metama’lumot saqlanadi. Hisob identity qiymatini qayta tekshirish kerak. Codex ma’lumotlari o‘zgarmaydi."
+  },
+  "status.idle": {
+    "en": "Idle",
+    "ru": "Без активных задач",
+    "uz-Latn": "Faol vazifa yo‘q"
+  },
+  "status.busy": {
+    "en": "Busy",
+    "ru": "Есть активные задачи",
+    "uz-Latn": "Faol vazifalar bor"
+  },
+  "status.unknown": {
+    "en": "Unknown",
+    "ru": "Неизвестно",
+    "uz-Latn": "Noma’lum"
+  },
+  "usage.status.unavailable": {
+    "en": "Unavailable",
+    "ru": "Недоступно",
+    "uz-Latn": "Mavjud emas"
+  },
+  "usage.status.verification": {
+    "en": "Verification required",
+    "ru": "Нужна проверка",
+    "uz-Latn": "Tekshirish kerak"
+  },
+  "usage.status.authentication": {
+    "en": "Authentication required",
+    "ru": "Нужен вход",
+    "uz-Latn": "Kirish kerak"
+  },
+  "usage.status.available": {
+    "en": "Available",
+    "ru": "Доступно",
+    "uz-Latn": "Mavjud"
+  },
+  "usage.status.loading": {
+    "en": "Loading",
+    "ru": "Загрузка",
+    "uz-Latn": "Yuklanmoqda"
+  },
+  "usage.status.refreshing": {
+    "en": "Refreshing",
+    "ru": "Обновление",
+    "uz-Latn": "Yangilanmoqda"
+  },
+  "usage.status.stale": {
+    "en": "Stale",
+    "ru": "Устарело",
+    "uz-Latn": "Eskirgan"
+  },
+  "usage.status.error": {
+    "en": "Error",
+    "ru": "Ошибка",
+    "uz-Latn": "Xato"
+  },
+  "usage.status.rateLimited": {
+    "en": "Rate limited",
+    "ru": "Ограничено запросами",
+    "uz-Latn": "So‘rovlar cheklangan"
+  },
+  "usage.status.unsupported": {
+    "en": "Unsupported",
+    "ru": "Не поддерживается",
+    "uz-Latn": "Qo‘llab-quvvatlanmaydi"
+  },
+  "opening.activated": {
+    "en": "The selected Codex instance is in the foreground. ChatGPT identity remains unverified.",
+    "ru": "Выбранный экземпляр Codex на переднем плане. Identity ChatGPT не подтверждена.",
+    "uz-Latn": "Tanlangan Codex nusxasi oldingi planda. ChatGPT identity qiymati tasdiqlanmagan."
+  },
+  "opening.launched": {
+    "en": "Codex opened with the linked environment and is in the foreground. ChatGPT identity remains unverified.",
+    "ru": "Codex открыт с привязанным окружением и находится на переднем плане. Identity ChatGPT не подтверждена.",
+    "uz-Latn": "Codex bog‘langan muhit bilan ochildi va oldingi planda. ChatGPT identity qiymati tasdiqlanmagan."
+  },
+  "opening.noResult": {
+    "en": "The operation has no confirmed result. Check Codex.",
+    "ru": "Результат операции не подтверждён. Проверьте Codex.",
+    "uz-Latn": "Amal natijasi tasdiqlanmadi. Codex ilovasini tekshiring."
+  },
+  "opening.blocked": {
+    "en": "Switching requires verified account identity and controlled two-account acceptance. Linking an environment does not enable switching.",
+    "ru": "Для переключения нужны подтверждённая identity и испытание с двумя аккаунтами. Привязка окружения не включает переключение.",
+    "uz-Latn": "Almashish uchun tasdiqlangan identity va ikki hisob bilan nazoratli sinov kerak. Muhitni bog‘lash almashishni yoqmaydi."
+  },
+  "usage.fiveHours": {
+    "en": "5h",
+    "ru": "5 ч",
+    "uz-Latn": "5 soat"
+  },
+  "usage.remaining": {
+    "en": "{0}% left",
+    "ru": "Осталось {0}%",
+    "uz-Latn": "{0}% qoldi"
+  },
+  "diagnostics.iconAvailable": {
+    "en": "Available (template)",
+    "ru": "Доступна (template)",
+    "uz-Latn": "Mavjud (template)"
+  },
+  "diagnostics.storageUnavailable": {
+    "en": "Storage unavailable",
+    "ru": "Хранилище недоступно",
+    "uz-Latn": "Saqlash joyi mavjud emas"
+  },
+  "menu.notLinked": {
+    "en": "Environment not linked",
+    "ru": "Окружение не привязано",
+    "uz-Latn": "Muhit bog‘lanmagan"
+  },
+  "menu.environmentError": {
+    "en": "Environment needs checking",
+    "ru": "Проверьте окружение",
+    "uz-Latn": "Muhitni tekshiring"
+  },
+  "diagnostics.preflightFailed": {
+    "en": "Read-only preflight could not be completed.",
+    "ru": "Не удалось выполнить предварительную проверку без изменений.",
+    "uz-Latn": "O‘zgartirishsiz dastlabki tekshiruvni tugatib bo‘lmadi."
+  },
+  "account.profileName": {
+    "en": "Profile Name",
+    "ru": "Название профиля",
+    "uz-Latn": "Profil nomi"
+  },
+  "account.namePlaceholder": {
+    "en": "Personal, Work, etc.",
+    "ru": "Личный, Рабочий и т. д.",
+    "uz-Latn": "Shaxsiy, Ish va h.k."
+  },
+  "account.nameHint": {
+    "en": "Only visible in CodexSwoop.",
+    "ru": "Название используется только в CodexSwoop.",
+    "uz-Latn": "Bu nom faqat CodexSwoop’da ko‘rinadi."
+  },
+  "account.continue": {
+    "en": "Continue",
+    "ru": "Продолжить",
+    "uz-Latn": "Davom etish"
+  },
+  "account.alreadyLinked": {
+    "en": "This Codex setup is already linked.",
+    "ru": "Этот аккаунт Codex уже подключён.",
+    "uz-Latn": "Bu Codex muhiti allaqachon ulangan."
+  },
+  "account.notInstalled": {
+    "en": "Install Codex or select it in Settings, then try again.",
+    "ru": "Установите Codex или выберите его в Настройках и повторите попытку.",
+    "uz-Latn": "Codex’ni o‘rnating yoki Sozlamalarda tanlang, keyin qayta urinib ko‘ring."
+  },
+  "account.unavailable": {
+    "en": "This Codex setup is unavailable. Open Codex and complete its setup, then try again.",
+    "ru": "Это окружение Codex недоступно. Откройте Codex, завершите его настройку и повторите попытку.",
+    "uz-Latn": "Bu Codex muhiti mavjud emas. Codex’ni ochib sozlashni tugating, keyin qayta urinib ko‘ring."
+  },
+  "account.storageUnavailable": {
+    "en": "Account setup is unavailable. Check Accounts & Storage in Settings.",
+    "ru": "Добавление недоступно. Проверьте «Аккаунты и хранилище» в Настройках.",
+    "uz-Latn": "Hisob qo‘shish mavjud emas. Sozlamalardagi Hisoblar va saqlash bo‘limini tekshiring."
+  },
+  "account.createFailed": {
+    "en": "Couldn’t create a separate Codex environment. Check Accounts & Storage in Settings, then try again.",
+    "ru": "Не удалось создать отдельное окружение Codex. Проверьте «Аккаунты и хранилище» в Настройках и повторите попытку.",
+    "uz-Latn": "Alohida Codex muhitini yaratib bo‘lmadi. Sozlamalardagi Hisoblar va saqlash bo‘limini tekshirib, qayta urinib ko‘ring."
+  },
+  "review.requiredDetail": {
+    "en": "A previous action may have finished only partly. Check Again safely checks the current state before another action.",
+    "ru": "Предыдущее действие могло завершиться частично. «Проверить ещё раз» безопасно проверит состояние перед новой операцией.",
+    "uz-Latn": "Oldingi amal qisman tugagan bo‘lishi mumkin. Qayta tekshirish keyingi amaldan oldin joriy holatni xavfsiz tekshiradi."
+  },
+  "onboarding.welcome": {
+    "en": "Welcome to CodexSwoop",
+    "ru": "Добро пожаловать в CodexSwoop",
+    "uz-Latn": "CodexSwoop’ga xush kelibsiz"
+  },
+  "onboarding.intro": {
+    "en": "Use multiple Codex accounts on one Mac and switch between them easily.",
+    "ru": "Используйте несколько аккаунтов Codex на одном Mac и легко переключайтесь между ними.",
+    "uz-Latn": "Bir Mac’da bir nechta Codex hisobidan foydalaning va ular orasida osongina almashing."
+  },
+  "onboarding.saved": {
+    "en": "View saved accounts in Settings",
+    "ru": "Сохранённые аккаунты в Настройках",
+    "uz-Latn": "Saqlangan hisoblarni Sozlamalarda ko‘rish"
+  },
+  "onboarding.codex.missing": {
+    "en": "Codex Desktop was not found on this Mac.",
+    "ru": "Codex Desktop не найден на этом Mac.",
+    "uz-Latn": "Bu Mac’da Codex Desktop topilmadi."
+  },
+  "onboarding.codex.checking": {
+    "en": "Checking Codex compatibility…",
+    "ru": "Проверяем совместимость Codex…",
+    "uz-Latn": "Codex mosligi tekshirilmoqda…"
+  },
+  "onboarding.codex.verified": {
+    "en": "Codex is compatible with this version of CodexSwoop.",
+    "ru": "Codex совместим с этой версией CodexSwoop.",
+    "uz-Latn": "Codex ushbu CodexSwoop versiyasiga mos."
+  },
+  "onboarding.codex.unverified": {
+    "en": "This Codex version hasn't been verified with CodexSwoop.",
+    "ru": "Эта версия Codex ещё не проверена с CodexSwoop.",
+    "uz-Latn": "Bu Codex versiyasi CodexSwoop bilan hali tekshirilmagan."
+  },
+  "onboarding.codex.statusUnverified": {
+    "en": "Compatibility not confirmed",
+    "ru": "Совместимость не подтверждена",
+    "uz-Latn": "Moslik tasdiqlanmagan"
+  },
+  "onboarding.codex.version": {
+    "en": "Version: {0}",
+    "ru": "Версия: {0}",
+    "uz-Latn": "Versiya: {0}"
+  },
+  "onboarding.download": {
+    "en": "Official Download…",
+    "ru": "Официальная загрузка…",
+    "uz-Latn": "Rasmiy yuklab olish…"
+  },
+  "onboarding.downloadHint": {
+    "en": "Opens the official OpenAI desktop download page in your browser.",
+    "ru": "Открывает официальную страницу загрузки OpenAI в браузере.",
+    "uz-Latn": "Brauzerda OpenAI’ning rasmiy yuklab olish sahifasini ochadi."
+  },
+  "onboarding.checkAgain": {
+    "en": "Check Again",
+    "ru": "Проверить ещё раз",
+    "uz-Latn": "Qayta tekshirish"
+  },
+  "onboarding.checkStatus": {
+    "en": "Check Status",
+    "ru": "Проверить статус",
+    "uz-Latn": "Holatni tekshirish"
+  },
+  "onboarding.permissionStatus": {
+    "en": "Permission status",
+    "ru": "Статус разрешения",
+    "uz-Latn": "Ruxsat holati"
+  },
+  "onboarding.windowFeatures": {
+    "en": "About window-specific features",
+    "ru": "О работе с отдельными окнами",
+    "uz-Latn": "Alohida oynalar haqida"
+  },
+  "onboarding.axWindowExplanation": {
+    "en": "Accessibility is needed only to inspect or focus a specific confirmed window. Permission alone cannot confirm which account owns it. Opening an account by its verified process does not need this permission.",
+    "ru": "Универсальный доступ нужен только для проверки или фокусировки конкретного подтверждённого окна. Само разрешение не подтверждает аккаунт в нём. Открытие аккаунта через проверенный процесс работает без этого разрешения.",
+    "uz-Latn": "Maxsus imkoniyatlar faqat tasdiqlangan alohida oynani tekshirish yoki unga fokus berish uchun kerak. Ruxsatning o‘zi oynadagi hisobni tasdiqlamaydi. Hisobni tekshirilgan jarayon orqali ochishga bu ruxsat kerak emas."
+  },
+  "onboarding.login.enabled": {
+    "en": "Enabled by macOS",
+    "ru": "Включено macOS",
+    "uz-Latn": "macOS tomonidan yoqilgan"
+  },
+  "onboarding.login.off": {
+    "en": "Off",
+    "ru": "Выключено",
+    "uz-Latn": "O‘chirilgan"
+  },
+  "onboarding.login.approval": {
+    "en": "Waiting for approval in System Settings",
+    "ru": "Ожидает разрешения в Системных настройках",
+    "uz-Latn": "Tizim sozlamalarida tasdiq kutilmoqda"
+  },
+  "onboarding.login.unavailable": {
+    "en": "Unavailable for this copy of the app",
+    "ru": "Недоступно для этой копии приложения",
+    "uz-Latn": "Ilovaning bu nusxasi uchun mavjud emas"
+  },
+  "onboarding.login.unknown": {
+    "en": "macOS status is unknown",
+    "ru": "Статус macOS неизвестен",
+    "uz-Latn": "macOS holati noma’lum"
+  },
+  "onboarding.login.optional": {
+    "en": "Optional. You can use CodexSwoop without launching it at login.",
+    "ru": "Необязательно. CodexSwoop работает и без запуска при входе.",
+    "uz-Latn": "Ixtiyoriy. CodexSwoop’dan tizimga kirishda avtomatik ochmasdan ham foydalanish mumkin."
+  },
+  "onboarding.login.failed": {
+    "en": "macOS could not change Launch at Login. Check Login Items in System Settings; the current status is shown above.",
+    "ru": "macOS не смогла изменить автозапуск. Проверьте Объекты входа в Системных настройках; текущий статус показан выше.",
+    "uz-Latn": "macOS avtomatik ochish holatini o‘zgartira olmadi. Tizim sozlamalaridagi Kirish obyektlarini tekshiring; joriy holat yuqorida ko‘rsatilgan."
+  },
+  "onboarding.login.errorDetail": {
+    "en": "Launch at Login system error: {0} ({1}).",
+    "ru": "Системная ошибка автозапуска: {0} ({1}).",
+    "uz-Latn": "Avtomatik ochish tizim xatosi: {0} ({1})."
+  },
+  "onboarding.login.openSettings": {
+    "en": "Open Login Items…",
+    "ru": "Открыть Объекты входа…",
+    "uz-Latn": "Kirish obyektlarini ochish…"
+  },
+  "onboarding.windowUncertain": {
+    "en": "We couldn't confirm which Codex window belongs to this account.",
+    "ru": "Не удалось подтвердить, какое окно Codex принадлежит этому аккаунту.",
+    "uz-Latn": "Qaysi Codex oynasi ushbu hisobga tegishli ekanini tasdiqlab bo‘lmadi."
+  },
+  "onboarding.actionFailed": {
+    "en": "We couldn't complete this action. Check Details before trying again.",
+    "ru": "Не удалось завершить действие. Перед новой попыткой откройте подробности.",
+    "uz-Latn": "Amalni yakunlab bo‘lmadi. Qayta urinishdan oldin tafsilotlarni ko‘ring."
+  },
+  "onboarding.linked": {
+    "en": "Connected",
+    "ru": "Подключён",
+    "uz-Latn": "Ulangan"
+  },
+  "onboarding.addHint": {
+    "en": "Use an existing Codex account or sign in to another one.",
+    "ru": "Подключите существующий аккаунт Codex или войдите в другой.",
+    "uz-Latn": "Mavjud Codex hisobini ulang yoki boshqa hisobga kiring."
+  },
+  "onboarding.selected": {
+    "en": "Selected",
+    "ru": "Выбрано",
+    "uz-Latn": "Tanlangan"
+  },
+  "onboarding.notSelected": {
+    "en": "Not selected",
+    "ru": "Не выбрано",
+    "uz-Latn": "Tanlanmagan"
+  },
+  "onboarding.restore": {
+    "en": "Restore {0}",
+    "ru": "Восстановить {0}",
+    "uz-Latn": "{0} hisobini tiklash"
+  },
+  "onboarding.closeWindow": {
+    "en": "Close Window",
+    "ru": "Закрыть окно",
+    "uz-Latn": "Oynani yopish"
+  },
+  "review.previousOperation": {
+    "en": "Previous operation needs review.",
+    "ru": "Предыдущая операция требует проверки.",
+    "uz-Latn": "Oldingi amalni tekshirish kerak."
+  },
+  "review.journalDetail": {
+    "en": "The opening journal needs review. Invalid or unsupported records, changed metadata, another running operation, or a different Mac boot session block new actions. Check Again only observes processes; it never launches or closes Codex. A missing journal or watermark in an initialized store requires investigation; older stores need a separately reviewed bootstrap.",
+    "ru": "Журнал открытия требует проверки. Повреждённая или неподдерживаемая запись, изменённые метаданные, другая выполняемая операция или новая загрузочная сессия Mac блокируют новые действия. «Проверить ещё раз» только наблюдает процессы, не запуская и не закрывая Codex. Отсутствие журнала или watermark в инициализированном хранилище требует расследования; для старого хранилища нужна отдельно согласованная инициализация.",
+    "uz-Latn": "Ochish jurnalini tekshirish kerak. Buzilgan yoki qo‘llab-quvvatlanmaydigan yozuvlar, o‘zgargan metama’lumot, boshqa bajarilayotgan amal yoki Mac qayta yuklangani yangi amallarni to‘sadi. Qayta tekshirish faqat jarayonlarni kuzatadi; Codex ilovasini ochmaydi va yopmaydi. Tayyorlangan omborda jurnal yoki watermark yo‘qligi tekshiruvni talab qiladi; eski ombor uchun alohida kelishilgan boshlang‘ich sozlash kerak."
+  },
+  "review.safeDetail": {
+    "en": "Current process and environment ownership was checked. Starting a new operation is safe. This does not confirm that the previous window activation succeeded or verify the ChatGPT account.",
+    "ru": "Проверена текущая принадлежность процессов и окружений. Можно безопасно начать новую операцию. Успех предыдущей активации окна и личность аккаунта ChatGPT не подтверждены.",
+    "uz-Latn": "Joriy jarayonlar va muhit egaligi tekshirildi. Yangi amalni xavfsiz boshlash mumkin. Bu oldingi oyna faollashgani yoki ChatGPT hisobi shaxsini tasdiqlamaydi."
+  }
+}

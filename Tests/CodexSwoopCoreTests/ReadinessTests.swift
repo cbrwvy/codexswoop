@@ -1,0 +1,542 @@
+import XCTest
+import Darwin
+@testable import CodexSwoopCore
+
+private struct SyntheticIdentityReader: AccountIdentityReading {
+    let key: AccountIdentityKey
+    func read(_ request: AccountIdentityRequest) -> IdentityReadResult {
+        .response(RoutedAccountIdentity(request: request, key: key, authenticated: true))
+    }
+}
+
+@MainActor final class ReadinessTests: XCTestCase {
+    func testPersistentPreparationRetainsLegacyUUIDAndDoesNotBind() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-xctest-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ProfileStore(root: root), profile = try await store.create(name: "Fixture Work").profiles[0]
+        let before = try Data(contentsOf: root.appendingPathComponent("profiles.json"))
+        let association = try await store.prepareManagedEnvironment(profileID: profile.id)
+        try EnvironmentValidator(managedRoot: root).revalidate(association)
+        XCTAssertEqual(association.environmentID, profile.id)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("profiles.json")), before)
+        let reopened = try await ProfileStore(root: root).inspectManagedEnvironments()
+        XCTAssertEqual(reopened.prepared, [association])
+        let bindings = try await store.inspectAssociations()
+        XCTAssertTrue(bindings.associations.isEmpty)
+        do { _ = try await store.prepareManagedEnvironment(profileID: profile.id); XCTFail("Recreation accepted") }
+        catch { XCTAssertEqual(error as? EnvironmentError, .environmentPrepared) }
+    }
+    func testIdentityRequiresIndependentAnchorAndDefaultsToUnavailable() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-xctest-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ProfileStore(root: root), profile = try await store.create(name: "Fixture Work").profiles[0]
+        let association = try await store.prepareManagedEnvironment(profileID: profile.id)
+        let gen = DesktopGeneration(pid: 100_001, uid: getuid(), started: "synthetic")
+        let instance = DesktopInstance(main: gen, related: [gen], nativeLaunchDate: Date().addingTimeInterval(-1))
+        let request = AccountIdentityRequest(association: association, instance: instance)
+        let key = try AccountIdentityKey(namespace: "synthetic", subject: "fixture")
+        let reader = SyntheticIdentityReader(key: key)
+        let missing = try await AccountIdentityVerifier(reader: reader).assess(request)
+        XCTAssertEqual(missing.state, .unverified)
+        let matching = try await AccountIdentityVerifier(reader: reader, expected: [ExpectedAccountIdentity(association: association, key: key)]).assess(request)
+        XCTAssertTrue(matching.proof.confirms(association, instance: instance))
+        let blocked = try await AccountIdentityVerifier().assess(request)
+        XCTAssertEqual(blocked.state, .verificationUnavailable)
+    }
+    func testWindowEvidenceRejectsWrongGenerationEvenWithSamePID() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-xctest-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ProfileStore(root: root), profile = try await store.create(name: "Fixture Work").profiles[0]
+        let association = try await store.prepareManagedEnvironment(profileID: profile.id)
+        let gen = DesktopGeneration(pid: 100_001, uid: getuid(), started: "synthetic")
+        let instance = DesktopInstance(main: gen, related: [gen], nativeLaunchDate: Date().addingTimeInterval(-1))
+        let reused = DesktopGeneration(pid: gen.pid, uid: getuid(), started: "replacement")
+        let evidence = DesktopActivationEvidence(association: association, instance: instance, windowIDs: [1], windowOwners: [reused], ownershipConfirmed: true)
+        XCTAssertThrowsError(try evidence.validate(association: association, instance: instance)) {
+            XCTAssertEqual($0 as? EnvironmentError, .activationUnavailable)
+        }
+    }
+}
+
+final class FirstRunTests: XCTestCase {
+    func testWelcomeDependsOnActiveProfilesAndHealthyStorage() {
+        XCTAssertTrue(FirstRunPresentation.showsWelcome(profileCount: 0, storageReady: true))
+        XCTAssertFalse(FirstRunPresentation.showsWelcome(profileCount: 1, storageReady: true))
+        XCTAssertFalse(FirstRunPresentation.showsWelcome(profileCount: 4, storageReady: true))
+        XCTAssertFalse(FirstRunPresentation.showsWelcome(profileCount: 0, storageReady: false))
+        XCTAssertEqual(FirstRunPresentation.downloadURL.scheme, "https")
+        XCTAssertEqual(FirstRunPresentation.downloadURL.host, "learn.chatgpt.com")
+    }
+    func testDiscoveryMetadataCannotApproveAnotherBuildOrLocation() {
+        let reviewed = CodexInstallation(url: URL(fileURLWithPath: ReviewedCodexBuild.path),
+            version: ReviewedCodexBuild.version, build: ReviewedCodexBuild.build)
+        XCTAssertTrue(ReviewedCodexBuild.matches(reviewed))
+        for candidate in [
+            CodexInstallation(url: reviewed.url, version: "future", build: reviewed.build),
+            CodexInstallation(url: reviewed.url, version: reviewed.version, build: "future"),
+            CodexInstallation(url: URL(fileURLWithPath: "/private/tmp/Codex.app"), version: reviewed.version, build: reviewed.build),
+            CodexInstallation(url: reviewed.url, version: reviewed.version, bundleIdentifier: "fixture.other", build: reviewed.build)
+        ] { XCTAssertFalse(ReviewedCodexBuild.matches(candidate)) }
+        for state in CodexAvailability.allCases {
+            XCTAssertEqual(state.permitsSetup, state == .verified)
+            XCTAssertFalse(L10n.format(state.messageKey, locale: "en").isEmpty)
+        }
+    }
+    func testDeniedAccessibilityKeepsPIDOpeningButDoesNotPermitWindowInspection() {
+        XCTAssertTrue(AccessibilityStatus.denied.permitsPIDOpening)
+        XCTAssertFalse(AccessibilityStatus.denied.permitsWindowInspection)
+        XCTAssertTrue(AccessibilityStatus.allowed.permitsPIDOpening)
+        XCTAssertTrue(AccessibilityStatus.allowed.permitsWindowInspection)
+        XCTAssertNotEqual(AccessibilityStatus.allowed.messageKey, AccessibilityStatus.denied.messageKey)
+        // No permission status is passed into identity verification or environment ownership.
+    }
+    func testOnboardingAndSelectionSemanticsHaveThreeLocalesAndEnglishFallback() {
+        for locale in ["en", "ru", "uz-Latn"] {
+            let selected = L10n.format("onboarding.selected", locale: locale)
+            XCTAssertNotEqual(selected, L10n.format("onboarding.notSelected", locale: locale))
+            XCTAssertNotEqual(selected, "onboarding.selected")
+            XCTAssertNotEqual(L10n.format("onboarding.restore", locale: locale, arguments: ["Fixture"]), "onboarding.restore")
+            XCTAssertTrue(L10n.format("onboarding.restore", locale: locale, arguments: ["Fixture"]).contains("Fixture"))
+        }
+        XCTAssertEqual(L10n.format("onboarding.welcome", locale: "unsupported"), "Welcome to CodexSwoop")
+    }
+}
+
+/// Entirely synthetic process records; no native process inspection or effects.
+final class InstallationZombieTests: XCTestCase {
+    private let seconds: Int64 = 1_700_000_000
+    private func metadata() throws -> DesktopProcessMetadata {
+        try DesktopProcessMetadata.parse("100002 100001 \(getuid()) Tue Nov 14 22:13:20 2023 <defunct>")
+    }
+    private func kernel(status: Int32 = SZOMB, parent: Int32 = 100_001,
+                        usec: Int64 = 123, uid: UInt32 = getuid()) -> KernelProcessStatus {
+        KernelProcessStatus(pid: 100_002, parent: parent, uid: uid, status: status,
+                            seconds: seconds, microseconds: usec)
+    }
+    private func parent(start: UInt64 = 1_699_999_999_000_000) -> DesktopGeneration {
+        DesktopGeneration(pid: 100_001, uid: getuid(), started: "synthetic parent", startTimeMicroseconds: start)
+    }
+    private func witness() throws -> InstallationZombieWitness {
+        try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z", first: kernel(),
+            second: kernel(), parent: parent(), hasChildren: false)
+    }
+    private func changed(_ body: () throws -> Void, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertThrowsError(try body(), file: file, line: line) {
+            XCTAssertEqual($0 as? EnvironmentError, .processChanged, file: file, line: line)
+        }
+    }
+    func testLiveCorrectProcessRequiresPreciseGeneration() throws {
+        let row = try metadata()
+        let generation = DesktopGeneration(pid: row.pid, uid: row.uid, started: row.started,
+            startTimeMicroseconds: UInt64(seconds * 1_000_000 + 123))
+        let value = try InstallationProcessSample.read(metadata: row, psStatus: "S", hasChildren: false,
+            parent: { XCTFail("Live parent bypass used"); throw EnvironmentError.processChanged },
+            kernel: { _ in XCTFail("Live kernel fallback used"); throw EnvironmentError.processChanged },
+            precise: { _ in generation })
+        guard case .active(let found) = value else { return XCTFail("Live process excluded") }
+        XCTAssertEqual(found, generation)
+    }
+    func testLiveUnconfirmedGenerationStillBlocks() throws {
+        changed {
+            _ = try InstallationProcessSample.read(metadata: metadata(), psStatus: "S", hasChildren: false,
+                parent: { self.parent() }, kernel: { _ in self.kernel() },
+                precise: { _ in throw EnvironmentError.processChanged })
+        }
+        changed {
+            _ = try InstallationProcessSample.read(metadata: metadata(), psStatus: "S", hasChildren: false,
+                parent: { self.parent() }, kernel: { _ in self.kernel() },
+                precise: { DesktopGeneration(pid: $0.pid, uid: $0.uid, started: $0.started) })
+        }
+    }
+    func testConfirmedZombieUsesKernelGeneration() throws {
+        let found = try witness()
+        XCTAssertEqual(found.kernel.status, SZOMB)
+        XCTAssertEqual(found.kernel.microseconds, 123)
+    }
+    func testAmbiguousZombieAndDefunctTextAloneBlock() throws {
+        for status in ["", "S", "<defunct>"] {
+            changed { _ = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: status,
+                first: kernel(), second: kernel(), parent: parent(), hasChildren: false) }
+        }
+        changed { _ = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(status: SRUN), second: kernel(status: SRUN), parent: parent(), hasChildren: false) }
+    }
+    func testZombieWithUnavailableLibprocNeedsIndependentKernelProof() throws {
+        let found = try InstallationProcessSample.read(metadata: metadata(), psStatus: "Z", hasChildren: false,
+            parent: { self.parent() }, kernel: { _ in self.kernel() },
+            precise: { _ in XCTFail("Zombie libproc must not supply active generation"); throw EnvironmentError.processChanged })
+        guard case .zombie = found else { return XCTFail("Zombie became active") }
+    }
+    func testUnavailableOrMissingKernelRecordBlocks() throws {
+        changed { _ = try InstallationProcessSample.read(metadata: metadata(), psStatus: "Z", hasChildren: false,
+            parent: { self.parent() }, kernel: { _ in throw EnvironmentError.processChanged }) }
+    }
+    func testZombieDisappearanceBetweenSnapshotsBlocks() throws {
+        let session = InstallationPreflightSession()
+        try session.check([100_002: witness()])
+        changed { try session.check([:]) }
+    }
+    func testPIDReuseBetweenAndWithinSnapshotsBlocks() throws {
+        changed { _ = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(), second: kernel(usec: 124), parent: parent(), hasChildren: false) }
+        let session = InstallationPreflightSession()
+        try session.check([100_002: witness()])
+        let reused = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(usec: 124), second: kernel(usec: 124), parent: parent(), hasChildren: false)
+        changed { try session.check([100_002: reused]) }
+        changed { try session.check([:]) } // A replacement live PID cannot erase a tombstone.
+    }
+    func testParentChangeAndParentReuseBlock() throws {
+        changed { _ = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(), second: kernel(parent: 100_003), parent: parent(), hasChildren: false) }
+        let session = InstallationPreflightSession()
+        try session.check([100_002: witness()])
+        let reusedParent = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(), second: kernel(), parent: parent(start: 1_699_999_999_000_001), hasChildren: false)
+        changed { try session.check([100_002: reusedParent]) }
+    }
+    func testUnknownChildAndUnconfirmedParentBlock() throws {
+        changed { _ = try InstallationProcessSample.read(metadata: metadata(), psStatus: "?", hasChildren: false,
+            parent: { self.parent() }, kernel: { _ in self.kernel() },
+            precise: { _ in throw EnvironmentError.processChanged }) }
+        changed { _ = try InstallationProcessSample.read(metadata: metadata(), psStatus: "Z", hasChildren: false,
+            parent: { throw EnvironmentError.processChanged }, kernel: { _ in self.kernel() }) }
+    }
+    func testZombieWithChildrenOrWrongOwnerBlocks() throws {
+        changed { _ = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(), second: kernel(), parent: parent(), hasChildren: true) }
+        changed { _ = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(uid: getuid() &+ 1), second: kernel(uid: getuid() &+ 1), parent: parent(), hasChildren: false) }
+    }
+    func testSameCountsCannotHideGenerationDriftBetweenPreflights() throws {
+        let original = try witness()
+        let replacement = try InstallationZombieWitness.confirm(metadata: metadata(), psStatus: "Z",
+            first: kernel(usec: 124), second: kernel(usec: 124), parent: parent(), hasChildren: false)
+        let first = InstallationProcessPreflightReport(entries: [], witnesses: [100_002: original])
+        let second = InstallationProcessPreflightReport(entries: [], witnesses: [100_002: replacement])
+        XCTAssertEqual(first.confirmedZombieCount, second.confirmedZombieCount)
+        XCTAssertNotEqual(first, second)
+    }
+    func testCleanLegacyUpgradeObservationDoesNotInitializeJournal() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-zombie-fixture-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ProfileStore(root: root)
+        _ = try await store.create(name: "Synthetic legacy profile")
+        // Remove only this synthetic fixture's pair to model a pre-journal installation.
+        for name in ["opening-journal.json", "opening-journal-watermark.json"] {
+            try FileManager.default.removeItem(at: root.appendingPathComponent(name))
+        }
+        let before = try await store.inspectAccountSetup()
+        let originalNames = try FileManager.default.contentsOfDirectory(atPath: root.path).sorted()
+        let originalBytes = try Data(contentsOf: root.appendingPathComponent("profiles.json"))
+        let session = InstallationPreflightSession()
+        try session.check([100_002: witness()]); try session.check([100_002: witness()])
+        let report = InstallationProcessPreflightReport(entries: [], witnesses: session.witnesses!)
+        XCTAssertEqual(report.confirmedZombieCount, 1)
+        // Process success does not upgrade legacy absence to a clean recovery record.
+        XCTAssertThrowsError(try OpeningOperationJournal(root: root).pending()) {
+            XCTAssertEqual($0 as? OpeningJournalError, .legacyUninitialized)
+        }
+        let after = try await store.inspectAccountSetup()
+        XCTAssertEqual(after, before)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path).sorted(), originalNames)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("profiles.json")), originalBytes)
+    }
+}
+
+/// Pure installation evidence fixtures. No native adapter, user data or process control.
+struct InstallationGroupingFixture {
+    let date = Date(timeIntervalSince1970: 1_700_000_000)
+    func identity(_ inode: UInt64, device: UInt64 = 1) -> DirectoryIdentity {
+        DirectoryIdentity(device: device, inode: inode, owner: getuid(), permissions: 0o700)
+    }
+    func association(_ index: Int, home: UInt64, electron: UInt64,
+                     kind: EnvironmentKind = .standardExternal, origin: AssociationOrigin = .currentDefaults,
+                     homePath: String? = nil, electronPath: String? = nil) -> EnvironmentAssociation {
+        let id = UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index))!
+        return EnvironmentAssociation(profileID: id, environmentID: id, kind: kind,
+            codexHome: homePath ?? "/synthetic/root-\(home)", electronData: electronPath ?? "/synthetic/root-\(electron)",
+            homeIdentity: identity(home), electronIdentity: identity(electron), origin: origin,
+            lastCheck: .directoryMetadataVerified, checkedAt: date)
+    }
+    var current: [EnvironmentAssociation] {
+        [association(1, home: 1, electron: 2), association(2, home: 3, electron: 4, kind: .managed, origin: .userSelected)]
+    }
+    var aliases: [EnvironmentAssociation] { (3...5).map { association($0, home: 1, electron: 2) } }
+    func profile(_ association: EnvironmentAssociation) throws -> AccountProfile {
+        try AccountProfile(id: association.profileID, name: "Synthetic \(association.profileID.uuidString)", now: date)
+    }
+    func references(current selected: [EnvironmentAssociation]? = nil,
+                    retained: [EnvironmentAssociation]? = nil,
+                    prepared: [EnvironmentAssociation]? = nil,
+                    extraProfiles: [AccountProfile] = []) throws -> InstallationAssociationReferences {
+        let selected = selected ?? current
+        var profiles = ProfileCatalog(); profiles.profiles = try selected.map(profile) + extraProfiles
+        var catalog = AssociationCatalog(); catalog.associations = selected
+        var registry = ManagedEnvironmentCatalog(); registry.prepared = prepared ?? [current[1]]
+        var history = RetainedEnvironmentCatalog()
+        history.environments = try (retained ?? aliases).map {
+            RetainedEnvironment(profile: try profile($0), association: $0, retainedAt: date)
+        }
+        return try InstallationAssociationReferences(state: AccountSetupState(profiles: profiles,
+            associations: catalog, managed: registry, retained: history), research: [])
+    }
+    func generation(_ pid: Int32, micros: UInt64 = 1_700_000_000_000_000) -> DesktopGeneration {
+        DesktopGeneration(pid: pid, uid: getuid(), started: "synthetic", startTimeMicroseconds: micros)
+    }
+    func instance(_ pid: Int32) -> DesktopInstance {
+        DesktopInstance(main: generation(pid), related: [generation(pid), generation(pid + 1)], nativeLaunchDate: date)
+    }
+    func observation(_ association: EnvironmentAssociation, target: Int32?, count: Int = 1,
+                     reversed: Bool = false, instances: [DesktopInstance]? = nil) -> InstallationReferenceObservation {
+        let instances = instances ?? [instance(100_001), instance(200_001)]
+        let rows = instances.flatMap { value in
+            [DesktopProcessEvidence(generation: value.main, parent: 1, role: .main,
+                homeDescriptors: value.main.pid == target ? count : 0,
+                electronDescriptors: value.main.pid == target ? count : 0),
+             DesktopProcessEvidence(generation: value.related[1], parent: value.main.pid, role: .backend,
+                homeDescriptors: value.main.pid == target ? count : 0)]
+        }
+        return InstallationReferenceObservation(association: association,
+            instance: instances.first { $0.main.pid == target },
+            before: reversed ? rows.reversed() : rows, after: rows)
+    }
+    var build: OpeningBuildFingerprint {
+        OpeningBuildFingerprint(version: "synthetic", build: "fixture", signingRequirement: "synthetic-only",
+            archiveSHA256: String(repeating: "a", count: 64), codeDirectoryHash: String(repeating: "b", count: 40),
+            bundleGenerationSHA256: String(repeating: "c", count: 64))
+    }
+    func snapshot(references refs: InstallationAssociationReferences? = nil,
+                  observations: [InstallationReferenceObservation]? = nil,
+                  mains: Set<DesktopGeneration>? = nil, nativePIDs: Set<Int32>? = nil,
+                  witnesses: [Int32: InstallationZombieWitness] = [:],
+                  build: OpeningBuildFingerprint? = nil) throws -> InstallationGroupingSnapshot {
+        let refs = try refs ?? references()
+        let samples = observations ?? refs.values.map {
+            observation($0.association, target: $0.association.kind == .managed ? 200_001 : 100_001)
+        }
+        return try InstallationGroupingSnapshot(references: refs, observations: samples,
+            mains: mains ?? [generation(100_001), generation(200_001)], nativePIDs: nativePIDs ?? [100_001, 200_001],
+            witnesses: witnesses, build: build ?? self.build)
+    }
+}
+
+final class InstallationAliasGroupingTests: XCTestCase {
+    private let f = InstallationGroupingFixture()
+    func testTwoIndependentCurrentPairsRemainTwoInstances() throws {
+        let snapshot = try f.snapshot(references: f.references(retained: []))
+        let report = try InstallationProcessPreflightReport(first: snapshot, second: snapshot)
+        XCTAssertEqual(report.activeInstances, 2); XCTAssertEqual(report.referenceCount, 2)
+        XCTAssertEqual(report.historicalAliasCount, 0)
+    }
+    func testThreeHistoricalAliasesPreserveFiveReferencesAndAllProvenance() throws {
+        let snapshot = try f.snapshot(), report = try InstallationProcessPreflightReport(first: snapshot, second: snapshot)
+        XCTAssertEqual(report.activeInstances, 2); XCTAssertEqual(report.referenceCount, 5)
+        XCTAssertEqual(report.historicalAliasCount, 3); XCTAssertEqual(report.referenceGroupIndices, [0, 1, 0, 0, 0])
+        XCTAssertEqual(snapshot.references.values[1].sources, [.current, .managedRegistry])
+        XCTAssertEqual(snapshot.observations.count, 5)
+        XCTAssertEqual(snapshot.references.state.retained.environments.count, 3)
+    }
+    func testUnobservedRetainedOnlyReferenceRemainsInEvidence() throws {
+        let retained = f.association(6, home: 5, electron: 6, kind: .isolatedExternal, origin: .userSelected)
+        let refs = try f.references(retained: [retained])
+        let observations = refs.values.enumerated().map { index, ref in
+            f.observation(ref.association, target: index == 2 ? nil : index == 0 ? 100_001 : 200_001)
+        }
+        let snapshot = try f.snapshot(references: refs, observations: observations)
+        XCTAssertEqual(snapshot.groups.count, 3); XCTAssertNil(snapshot.groups[2].instance)
+        XCTAssertEqual(try InstallationProcessPreflightReport(first: snapshot, second: snapshot).referenceCount, 3)
+    }
+    func testObservedRetainedOnlyEnvironmentBlocksInsteadOfDisappearing() throws {
+        let retained = f.association(6, home: 5, electron: 6, kind: .isolatedExternal, origin: .userSelected)
+        let refs = try f.references(retained: [retained]), instances = [f.instance(100_001), f.instance(200_001), f.instance(300_001)]
+        let observations = refs.values.enumerated().map { index, ref in
+            f.observation(ref.association, target: instances[index].main.pid, instances: instances)
+        }
+        XCTAssertThrowsError(try f.snapshot(references: refs, observations: observations,
+            mains: Set(instances.map(\.main)), nativePIDs: Set(instances.map { $0.main.pid }))) {
+            XCTAssertEqual($0 as? EnvironmentError, .missingAssociation)
+        }
+    }
+    func testTwoCurrentOwnersOfOnePairBlock() {
+        XCTAssertThrowsError(try f.references(current: [f.current[0], f.aliases[0]], retained: [], prepared: []))
+    }
+    func testRetainedAliasWithActiveProfileBlocks() throws {
+        let refs = try f.references(extraProfiles: [f.profile(f.aliases[0])])
+        XCTAssertThrowsError(try f.snapshot(references: refs))
+    }
+    func testSamePairWithIncompatibleKindOrOriginBlocks() throws {
+        for retained in [f.association(6, home: 1, electron: 2, kind: .isolatedExternal),
+                         f.association(6, home: 1, electron: 2, origin: .userSelected)] {
+            XCTAssertThrowsError(try f.snapshot(references: f.references(retained: [retained])))
+        }
+    }
+    func testOneMainUsingTwoIndependentPairsBlocks() throws {
+        let refs = try f.references(retained: [])
+        let observations = refs.values.map { f.observation($0.association, target: 100_001) }
+        XCTAssertThrowsError(try f.snapshot(references: refs, observations: observations))
+    }
+    func testPartialRootOverlapBlocksEvenIfRetainedIsUnobserved() throws {
+        let refs = try f.references(retained: [f.association(6, home: 1, electron: 5)])
+        let observations = refs.values.enumerated().map { index, ref in
+            f.observation(ref.association, target: index == 2 ? nil : index == 0 ? 100_001 : 200_001)
+        }
+        XCTAssertThrowsError(try f.snapshot(references: refs, observations: observations))
+    }
+    func testNestedRootsBlock() throws {
+        let retained = f.association(6, home: 5, electron: 6, homePath: f.current[0].codexHome + "/nested")
+        XCTAssertThrowsError(try f.snapshot(references: f.references(retained: [retained])))
+    }
+    func testCrossRoleOverlapBlocks() throws {
+        let retained = f.association(6, home: 2, electron: 1)
+        XCTAssertThrowsError(try f.snapshot(references: f.references(retained: [retained])))
+    }
+    func testSamePathsWithDifferentFilesystemIdentityBlock() throws {
+        let retained = f.association(6, home: 5, electron: 6,
+            homePath: f.current[0].codexHome, electronPath: f.current[0].electronData)
+        XCTAssertThrowsError(try f.snapshot(references: f.references(retained: [retained])))
+    }
+    func testConflictingCompleteInstanceEvidenceBlocks() throws {
+        let refs = try f.references()
+        var observations = refs.values.map { f.observation($0.association, target: $0.association.kind == .managed ? 200_001 : 100_001) }
+        let old = observations[2], instance = old.instance!
+        observations[2] = InstallationReferenceObservation(association: old.association,
+            instance: DesktopInstance(main: instance.main, related: instance.related, nativeLaunchDate: instance.nativeLaunchDate.addingTimeInterval(-1)),
+            before: old.before, after: old.after)
+        XCTAssertThrowsError(try f.snapshot(references: refs, observations: observations))
+    }
+    func testConflictingDuplicateReferenceIDCannotBeDropped() throws {
+        let original = f.current[1]
+        let changed = EnvironmentAssociation(profileID: original.profileID, environmentID: original.environmentID,
+            kind: original.kind, codexHome: original.codexHome, electronData: original.electronData,
+            homeIdentity: original.homeIdentity, electronIdentity: original.electronIdentity,
+            origin: original.origin, lastCheck: original.lastCheck, checkedAt: original.checkedAt.addingTimeInterval(1))
+        XCTAssertThrowsError(try f.references(prepared: [changed]))
+    }
+    func testMissingActiveProfileMetadataBlocks() throws {
+        let refs = try f.references()
+        var profiles = refs.state.profiles; profiles.profiles.removeFirst()
+        XCTAssertThrowsError(try InstallationAssociationReferences(state: AccountSetupState(profiles: profiles,
+            associations: refs.state.associations, managed: refs.state.managed, retained: refs.state.retained), research: []))
+    }
+    func testIncompleteDescriptorEvidenceBlocks() throws {
+        let refs = try f.references()
+        for missing in ["home", "electron", "backend"] {
+            var observations = refs.values.map { f.observation($0.association, target: $0.association.kind == .managed ? 200_001 : 100_001) }
+            let old = observations[2]
+            let rows = old.before.map { row in
+                DesktopProcessEvidence(generation: row.generation, parent: row.parent, role: row.role,
+                    homeDescriptors: missing == "home" && row.role == .main || missing == "backend" && row.role == .backend ? 0 : row.homeDescriptors,
+                    electronDescriptors: missing == "electron" ? 0 : row.electronDescriptors, defaultDescriptors: row.defaultDescriptors)
+            }
+            observations[2] = InstallationReferenceObservation(association: old.association, instance: old.instance, before: rows, after: rows)
+            XCTAssertThrowsError(try f.snapshot(references: refs, observations: observations), missing)
+        }
+    }
+    func testUnknownNativeInstanceBlocks() {
+        XCTAssertThrowsError(try f.snapshot(nativePIDs: [100_001, 200_001, 300_001])) {
+            XCTAssertEqual($0 as? AccountOpeningError, .unknownInstances)
+        }
+    }
+    func testPIDReuseWithinObservationBlocks() throws {
+        let refs = try f.references(), old = f.observation(refs.values[0].association, target: 100_001)
+        var after = old.after
+        after[0] = DesktopProcessEvidence(generation: f.generation(after[0].generation.pid, micros: 1_700_000_000_000_001),
+            parent: after[0].parent, role: after[0].role, homeDescriptors: 1, electronDescriptors: 1)
+        var observations = try f.snapshot().observations
+        observations[0] = InstallationReferenceObservation(association: old.association, instance: old.instance, before: old.before, after: after)
+        XCTAssertThrowsError(try f.snapshot(references: refs, observations: observations))
+    }
+    func testChangedGenerationBetweenSnapshotsBlocksEvenWithSameCounts() throws {
+        let first = try f.snapshot(), replacement = f.generation(100_001, micros: 1_700_000_000_000_001)
+        let instances = [DesktopInstance(main: replacement, related: [replacement, f.generation(100_002)], nativeLaunchDate: f.date), f.instance(200_001)]
+        let observations = first.references.values.map {
+            f.observation($0.association, target: $0.association.kind == .managed ? 200_001 : 100_001, instances: instances)
+        }
+        let second = try f.snapshot(observations: observations, mains: [replacement, f.generation(200_001)])
+        XCTAssertThrowsError(try InstallationProcessPreflightReport(first: first, second: second))
+    }
+    func testDescriptorEnumerationOrderDoesNotChangeEvidence() throws {
+        let first = try f.snapshot()
+        let observations = first.references.values.map {
+            f.observation($0.association, target: $0.association.kind == .managed ? 200_001 : 100_001, reversed: true)
+        }
+        let second = try f.snapshot(observations: observations)
+        XCTAssertNoThrow(try InstallationProcessPreflightReport(first: first, second: second))
+    }
+    func testPositiveDescriptorCountVariationPreservesOriginalCountsAndStability() throws {
+        let first = try f.snapshot()
+        let observations = first.references.values.map {
+            f.observation($0.association, target: $0.association.kind == .managed ? 200_001 : 100_001, count: 3)
+        }
+        let second = try f.snapshot(observations: observations)
+        XCTAssertNotEqual(first.observations[0].before, second.observations[0].before)
+        XCTAssertNoThrow(try InstallationProcessPreflightReport(first: first, second: second))
+    }
+    func testRootEvidencePresenceChangeBetweenSnapshotsBlocks() throws {
+        let first = try f.snapshot()
+        var observations = first.observations
+        let old = observations[0]
+        let rows = old.before.map { row in
+            DesktopProcessEvidence(generation: row.generation, parent: row.parent, role: row.role,
+                homeDescriptors: row.homeDescriptors, electronDescriptors: row.electronDescriptors,
+                defaultDescriptors: row.generation.pid == 100_001 ? 1 : 0)
+        }
+        // Standard matching permits defaults, but a new evidence bucket is not stable.
+        for index in [0, 2, 3, 4] {
+            observations[index] = InstallationReferenceObservation(association: observations[index].association,
+                instance: old.instance, before: rows, after: rows)
+        }
+        let second = try f.snapshot(observations: observations)
+        XCTAssertThrowsError(try InstallationProcessPreflightReport(first: first, second: second))
+    }
+    func testBuildAndSignatureFingerprintChangesBlock() throws {
+        let first = try f.snapshot()
+        for hash in ["d", "e"] {
+            let changed = OpeningBuildFingerprint(version: f.build.version, build: f.build.build,
+                signingRequirement: f.build.signingRequirement, archiveSHA256: f.build.archiveSHA256,
+                codeDirectoryHash: hash == "d" ? String(repeating: hash, count: 40) : f.build.codeDirectoryHash,
+                bundleGenerationSHA256: String(repeating: hash, count: 64))
+            XCTAssertThrowsError(try InstallationProcessPreflightReport(first: first, second: f.snapshot(build: changed)))
+        }
+    }
+    func testChangedTerminalWitnessBetweenSnapshotsBlocks() throws {
+        let metadata = try DesktopProcessMetadata.parse("100003 100001 \(getuid()) Tue Nov 14 22:13:20 2023 <defunct>")
+        func witness(_ usec: Int64) throws -> InstallationZombieWitness {
+            let kernel = KernelProcessStatus(pid: 100_003, parent: 100_001, uid: getuid(), status: SZOMB,
+                seconds: 1_700_000_000, microseconds: usec)
+            return try InstallationZombieWitness.confirm(metadata: metadata, psStatus: "Z", first: kernel,
+                second: kernel, parent: f.generation(100_001), hasChildren: false)
+        }
+        let first = try f.snapshot(witnesses: [100_003: witness(1)])
+        let second = try f.snapshot(witnesses: [100_003: witness(2)])
+        XCTAssertThrowsError(try InstallationProcessPreflightReport(first: first, second: second))
+        XCTAssertThrowsError(try InstallationProcessPreflightReport(first: first, second: f.snapshot()))
+    }
+    func testOriginalLifecycleInventoryStillRejectsAliases() throws {
+        let snapshot = try f.snapshot()
+        let entries = snapshot.observations.compactMap { observation in
+            observation.instance.map { DesktopInventoryEntry(association: observation.association, instance: $0) }
+        }
+        XCTAssertThrowsError(try DesktopInstanceInventory(entries: entries, unknownCount: 0).validate())
+    }
+    func testStaleDirectoryMetadataBlocksFreshRevalidation() throws {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-alias-fixture-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let user = root.appendingPathComponent("user"), managed = root.appendingPathComponent("managed")
+        let home = user.appendingPathComponent(".codex"), electron = user.appendingPathComponent("Library/Application Support/Codex")
+        for path in [home, electron] {
+            try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        let validator = EnvironmentValidator(userHome: user, managedRoot: managed), original = f.current[0]
+        let fresh = try validator.link(profileID: original.profileID, environmentID: original.environmentID,
+            kind: .standardExternal, home: home.path, electron: electron.path)
+        let refs = try f.references(current: [fresh], retained: [], prepared: [])
+        try refs.revalidate(using: validator)
+        try FileManager.default.moveItem(at: home, to: user.appendingPathComponent("old-home"))
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        XCTAssertThrowsError(try refs.revalidate(using: validator)) {
+            XCTAssertEqual($0 as? EnvironmentError, .changedDirectory)
+        }
+    }
+}

@@ -1,0 +1,321 @@
+// !$*UTF8*$!
+{
+	classes = {
+	};
+	objectVersion = "56";
+	archiveVersion = "1";
+	objects = {
+        440000000000000000000001 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/AccountSetupTests.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000001 = { isa = PBXBuildFile; fileRef = 440000000000000000000001; };
+        440000000000000000000002 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/AccountUsageTests.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000002 = { isa = PBXBuildFile; fileRef = 440000000000000000000002; };
+        440000000000000000000003 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/EnvironmentAssociationTests.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000003 = { isa = PBXBuildFile; fileRef = 440000000000000000000003; };
+        440000000000000000000004 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/LocalizationTests.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000004 = { isa = PBXBuildFile; fileRef = 440000000000000000000004; };
+        440000000000000000000005 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/OpeningSafetyTests.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000005 = { isa = PBXBuildFile; fileRef = 440000000000000000000005; };
+        440000000000000000000006 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/ProfileStoreTests.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000006 = { isa = PBXBuildFile; fileRef = 440000000000000000000006; };
+        440000000000000000000007 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/ReadinessTests.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000007 = { isa = PBXBuildFile; fileRef = 440000000000000000000007; };
+        440000000000000000000008 = { isa = PBXFileReference; path = "Tests/CodexSwoopCoreTests/ReleaseFixtures.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        441000000000000000000008 = { isa = PBXBuildFile; fileRef = 440000000000000000000008; };
+        440000000000000000000100 = { isa = PBXFileReference; path = CodexSwoopCoreTests.xctest; explicitFileType = wrapper.cfbundle; sourceTree = BUILT_PRODUCTS_DIR; };
+        440000000000000000000101 = { isa = PBXGroup; name = Tests; sourceTree = "<group>"; children = (440000000000000000000001, 440000000000000000000002, 440000000000000000000003, 440000000000000000000004, 440000000000000000000005, 440000000000000000000006, 440000000000000000000007, 440000000000000000000008); };
+        440000000000000000000102 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (441000000000000000000001, 441000000000000000000002, 441000000000000000000003, 441000000000000000000004, 441000000000000000000005, 441000000000000000000006, 441000000000000000000007, 441000000000000000000008); runOnlyForDeploymentPostprocessing = 0; };
+        440000000000000000000103 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (440000000000000000000104); runOnlyForDeploymentPostprocessing = 0; };
+        440000000000000000000104 = { isa = PBXBuildFile; productRef = E55A8CC6397119BC2F346606; };
+        440000000000000000000105 = { isa = XCConfigurationList; defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; buildConfigurations = (440000000000000000000106, 440000000000000000000107); };
+        440000000000000000000108 = { isa = PBXNativeTarget; name = CodexSwoopCoreTests; productName = CodexSwoopCoreTests; productType = "com.apple.product-type.bundle.unit-test"; productReference = 440000000000000000000100; buildConfigurationList = 440000000000000000000105; buildPhases = (440000000000000000000102, 440000000000000000000103); dependencies = (); buildRules = (); packageProductDependencies = (E55A8CC6397119BC2F346606); };
+        440000000000000000000106 = { isa = XCBuildConfiguration; name = Debug; buildSettings = { GENERATE_INFOPLIST_FILE = YES; PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = io.github.cbrwvy.codexswoop.tests; SKIP_INSTALL = YES; CODE_SIGN_STYLE = Automatic; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@loader_path/../Frameworks", "@executable_path/../Frameworks"); }; };
+        440000000000000000000107 = { isa = XCBuildConfiguration; name = Release; buildSettings = { GENERATE_INFOPLIST_FILE = YES; PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = io.github.cbrwvy.codexswoop.tests; SKIP_INSTALL = YES; CODE_SIGN_STYLE = Automatic; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@loader_path/../Frameworks", "@executable_path/../Frameworks"); }; };
+        442000000000000000000002 = { isa = PBXFileReference; path = "Resources/Assets.xcassets/MenuBarIcon.imageset/MenuBarIcon.png"; lastKnownFileType = image.png; sourceTree = "<group>"; };
+        443000000000000000000002 = { isa = PBXBuildFile; fileRef = 442000000000000000000002; };
+        442000000000000000000003 = { isa = PBXFileReference; path = "Resources/Assets.xcassets/MenuBarIcon.imageset/MenuBarIcon@2x.png"; lastKnownFileType = image.png; sourceTree = "<group>"; };
+        443000000000000000000003 = { isa = PBXBuildFile; fileRef = 442000000000000000000003; };
+        410000000000000000000001 = { isa = PBXFileReference; path = "Sources/CodexSwoop/SettingsView.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        410000000000000000000002 = { isa = PBXBuildFile; fileRef = 410000000000000000000001; };
+        343000000000000000000001 = { isa = PBXFileReference; path = "Sources/CodexSwoop/MainThreadPreparation.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        343000000000000000000002 = { isa = PBXBuildFile; fileRef = 343000000000000000000001; };
+        332000000000000000000001 = { isa = PBXFileReference; path = "Sources/CodexSwoop/AccountUsageView.swift"; lastKnownFileType = sourcecode.swift; sourceTree = "<group>"; };
+        332000000000000000000002 = { isa = PBXBuildFile; fileRef = 332000000000000000000001; };
+
+		E9B2E96ABC5F6856F2BE79CF = {
+			isa = "XCBuildConfiguration";
+			buildSettings = {
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				CURRENT_PROJECT_VERSION = "4";
+				MARKETING_VERSION = "1.0.0";
+				INFOPLIST_FILE = "Resources/Info.plist";
+				ENABLE_APP_SANDBOX = "NO";
+				GENERATE_INFOPLIST_FILE = "NO";
+				CODE_SIGN_STYLE = "Automatic";
+				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+				PRODUCT_NAME = "CodexSwoop";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				COMBINE_HIDPI_IMAGES = "NO";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.cbrwvy.codexswoop";
+			};
+			name = "Debug";
+		};
+		AF22E82DF0BA3E82BC4973A7 = {
+			path = "Sources/CodexSwoop/CodexSwoopApp.swift";
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			sourceTree = "<group>";
+		};
+		582681C2EAE02B3F3D399C0C = {
+			isa = "XCLocalSwiftPackageReference";
+			relativePath = ".";
+		};
+		9D146E16999A62C197C7C40B = {
+			isa = "PBXBuildFile";
+			fileRef = "AF22E82DF0BA3E82BC4973A7";
+		};
+		FBDC4F23F93125BBEEAE800C = {
+			isa = "PBXGroup";
+			name = "Products";
+			children = (
+				"38A007151ABE87CC01A5B6E9",
+                440000000000000000000100,
+			);
+			sourceTree = "<group>";
+		};
+		E55A8CC6397119BC2F346606 = {
+			isa = "XCSwiftPackageProductDependency";
+			package = "582681C2EAE02B3F3D399C0C";
+			productName = "CodexSwoopCore";
+		};
+		B28B7AF69320201D1CF206EB = {
+			isa = "PBXGroup";
+			sourceTree = "<group>";
+			children = (
+				"D86F1C6DE996FA9624B331FB",
+				"AF22E82DF0BA3E82BC4973A7",
+                343000000000000000000001,
+                332000000000000000000001,
+                410000000000000000000001,
+				"AF8EE3362065EF3EA6164A0C",
+				"E8E20A9F75BFF61FB3514866",
+				"3685E330EC5277A9DD5661C6",
+				"59BD0A3FF43B32849B319E64",
+                442000000000000000000003,
+                442000000000000000000002,
+				"FBDC4F23F93125BBEEAE800C",
+                440000000000000000000101,
+			);
+		};
+		F37922C48DA5978D02C9E50E = {
+			isa = "XCConfigurationList";
+			defaultConfigurationIsVisible = "0";
+			defaultConfigurationName = "Release";
+			buildConfigurations = (
+				"E9B2E96ABC5F6856F2BE79CF",
+				"5A8C91857F674E16E2724F47",
+			);
+		};
+		F5695A83FCAA80E9D1FA84DD = {
+			isa = "PBXBuildFile";
+			fileRef = "E8E20A9F75BFF61FB3514866";
+		};
+		EBC94ECA1556FFD90A86209C = {
+			isa = "PBXBuildFile";
+			fileRef = "D86F1C6DE996FA9624B331FB";
+		};
+		3685E330EC5277A9DD5661C6 = {
+			path = "Resources/Assets.xcassets";
+			isa = "PBXFileReference";
+			lastKnownFileType = "folder.assetcatalog";
+			sourceTree = "<group>";
+		};
+		0189424A5A60FED329FA868E = {
+			isa = "PBXResourcesBuildPhase";
+			buildActionMask = "2147483647";
+			files = (
+				"04200CFFD12D083534B07BB1",
+                443000000000000000000003,
+                443000000000000000000002,
+			);
+			runOnlyForDeploymentPostprocessing = "0";
+		};
+		5A8C91857F674E16E2724F47 = {
+			isa = "XCBuildConfiguration";
+			buildSettings = {
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				CURRENT_PROJECT_VERSION = "4";
+				MARKETING_VERSION = "1.0.0";
+				INFOPLIST_FILE = "Resources/Info.plist";
+				ENABLE_APP_SANDBOX = "NO";
+				GENERATE_INFOPLIST_FILE = "NO";
+				CODE_SIGN_STYLE = "Automatic";
+				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+				PRODUCT_NAME = "CodexSwoop";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				COMBINE_HIDPI_IMAGES = "NO";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.cbrwvy.codexswoop";
+			};
+			name = "Release";
+		};
+		862894B703A6DEDF96A9DD6C = {
+			isa = "XCConfigurationList";
+			defaultConfigurationIsVisible = "0";
+			defaultConfigurationName = "Release";
+			buildConfigurations = (
+				"89E1FD6268CC0F221A2BE178",
+				"E6DE6C99132752C914FEF632",
+			);
+		};
+		98F54143AB4E86B28C3AFEE0 = {
+			buildConfigurationList = "862894B703A6DEDF96A9DD6C";
+			packageReferences = (
+				"582681C2EAE02B3F3D399C0C",
+			);
+			targets = (
+				"0E8A3AD980EC179856012B7E",
+                440000000000000000000108,
+			);
+			developmentRegion = "en";
+			knownRegions = (
+				"ru",
+                "uz-Latn",
+                "en",
+				"Base",
+			);
+			isa = "PBXProject";
+			compatibilityVersion = "Xcode 14.0";
+			productRefGroup = "FBDC4F23F93125BBEEAE800C";
+			projectDirPath = "";
+			attributes = {
+				LastUpgradeCheck = "1600";
+			};
+			hasScannedForEncodings = "0";
+			projectRoot = "";
+			mainGroup = "B28B7AF69320201D1CF206EB";
+		};
+		E8E20A9F75BFF61FB3514866 = {
+			path = "Sources/CodexSwoop/ProfileManager.swift";
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			sourceTree = "<group>";
+		};
+		D86F1C6DE996FA9624B331FB = {
+			path = "Sources/CodexSwoop/CodexDetector.swift";
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			sourceTree = "<group>";
+		};
+		89E1FD6268CC0F221A2BE178 = {
+			isa = "XCBuildConfiguration";
+			buildSettings = {
+				CLANG_ENABLE_MODULES = "YES";
+                ARCHS = "$(ARCHS_STANDARD)";
+                ENABLE_TESTABILITY = "YES";
+				ONLY_ACTIVE_ARCH = "YES";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG";
+				DEBUG_INFORMATION_FORMAT = "dwarf";
+				SWIFT_COMPILATION_MODE = "singlefile";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = "6.0";
+				MACOSX_DEPLOYMENT_TARGET = "14.0";
+				SDKROOT = "macosx";
+			};
+			name = "Debug";
+		};
+		38A007151ABE87CC01A5B6E9 = {
+			path = "CodexSwoop.app";
+			isa = "PBXFileReference";
+			includeInIndex = "0";
+			explicitFileType = "wrapper.application";
+			sourceTree = "BUILT_PRODUCTS_DIR";
+		};
+		59BD0A3FF43B32849B319E64 = {
+			path = "Resources/Info.plist";
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.plist.xml";
+			sourceTree = "<group>";
+		};
+		E6DE6C99132752C914FEF632 = {
+			isa = "XCBuildConfiguration";
+			buildSettings = {
+				CLANG_ENABLE_MODULES = "YES";
+				ONLY_ACTIVE_ARCH = "NO";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = "wholemodule";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = "6.0";
+				MACOSX_DEPLOYMENT_TARGET = "14.0";
+				SDKROOT = "macosx";
+			};
+			name = "Release";
+		};
+		0E8A3AD980EC179856012B7E = {
+			buildConfigurationList = "F37922C48DA5978D02C9E50E";
+			productReference = "38A007151ABE87CC01A5B6E9";
+			productType = "com.apple.product-type.application";
+			packageProductDependencies = (
+				"E55A8CC6397119BC2F346606",
+			);
+			productName = "CodexSwoop";
+			isa = "PBXNativeTarget";
+			buildPhases = (
+				"BCE16DD0260827ECF338C787",
+				"7561BFB015D8F536760CB671",
+				"0189424A5A60FED329FA868E",
+			);
+			dependencies = (
+			);
+			name = "CodexSwoop";
+			buildRules = (
+			);
+		};
+		E07938E53CA2026B2ADB15C7 = {
+			isa = "PBXBuildFile";
+			fileRef = "AF8EE3362065EF3EA6164A0C";
+		};
+		04200CFFD12D083534B07BB1 = {
+			isa = "PBXBuildFile";
+			fileRef = "3685E330EC5277A9DD5661C6";
+		};
+		ED5515BE9EC5C2E8DC76B514 = {
+			isa = "PBXBuildFile";
+			productRef = "E55A8CC6397119BC2F346606";
+		};
+		BCE16DD0260827ECF338C787 = {
+			isa = "PBXSourcesBuildPhase";
+			buildActionMask = "2147483647";
+			files = (
+                410000000000000000000002,
+                332000000000000000000002,
+                343000000000000000000002,
+				"EBC94ECA1556FFD90A86209C",
+				"9D146E16999A62C197C7C40B",
+				"E07938E53CA2026B2ADB15C7",
+				"F5695A83FCAA80E9D1FA84DD",
+			);
+			runOnlyForDeploymentPostprocessing = "0";
+		};
+		7561BFB015D8F536760CB671 = {
+			isa = "PBXFrameworksBuildPhase";
+			buildActionMask = "2147483647";
+			files = (
+				"ED5515BE9EC5C2E8DC76B514",
+			);
+			runOnlyForDeploymentPostprocessing = "0";
+		};
+		AF8EE3362065EF3EA6164A0C = {
+			path = "Sources/CodexSwoop/MenuBarView.swift";
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			sourceTree = "<group>";
+		};
+	};
+	rootObject = "98F54143AB4E86B28C3AFEE0";
+}
