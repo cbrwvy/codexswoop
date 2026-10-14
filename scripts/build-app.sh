@@ -18,7 +18,13 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/build/cache/clang"
 export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
 deployment_target="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Resources/Info.plist)"
-arch_flags+=(-Xlinker -platform_version -Xlinker macos -Xlinker "$deployment_target" -Xlinker "$sdk_version")
+# Multi-architecture SwiftPM builds use XCBuild, which supplies the platform and
+# deployment flags from Package.swift. Passing -Xlinker -platform_version in
+# that mode leaks the raw linker option to clang under Xcode 16.4 and fails.
+# Keep the explicit linker tuple for existing native/single-arch builds.
+if [ "$architecture" != universal ]; then
+  arch_flags+=(-Xlinker -platform_version -Xlinker macos -Xlinker "$deployment_target" -Xlinker "$sdk_version")
+fi
 swift build --product CodexSwoop -c "$configuration" --sdk "$SDKROOT" "${arch_flags[@]}" --cache-path "$PWD/build/cache/swiftpm"
 binary_directory="$(swift build --show-bin-path -c "$configuration" --sdk "$SDKROOT" "${arch_flags[@]}" --cache-path "$PWD/build/cache/swiftpm")"
 application="$PWD/build/$output_name/CodexSwoop.app"

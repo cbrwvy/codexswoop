@@ -16,6 +16,17 @@ func expectError(_ expected: ProfileError, _ operation: () async throws -> Void)
     catch let error as ProfileError { try expect(error == expected, "Unexpected error: \(error)") }
 }
 
+@MainActor
+private final class CoreCheckReporter {
+    private(set) var passed = 0
+    private(set) var failures = 0
+
+    func run(_ name: String, _ body: @MainActor () async throws -> Void) async {
+        do { try await body(); passed += 1; print("PASS \(name)") }
+        catch { failures += 1; print("FAIL \(name): \(error)") }
+    }
+}
+
 actor TestDriver: AccountSwitchingDriver {
     var events: [String] = []
     let identity: UUID?
@@ -85,12 +96,8 @@ struct CoreChecks {
             do { try await previewRealReplacement() } catch { print("NO-GO: \(error)"); exit(1) }
             return
         }
-        var passed = 0
-        var failures = 0
-        func run(_ name: String, _ body: @MainActor () async throws -> Void) async {
-            do { try await body(); passed += 1; print("PASS \(name)") }
-            catch { failures += 1; print("FAIL \(name): \(error)") }
-        }
+        let reporter = CoreCheckReporter()
+        let run = reporter.run
         let fm = FileManager.default
         let base = URL(fileURLWithPath: "/private/tmp/codexswoop-checks-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: base) }
@@ -98,14 +105,14 @@ struct CoreChecks {
 
         if ProcessInfo.processInfo.arguments.contains("--opening-journal-checks") {
             await openingJournalChecks(base: base, run: run)
-            print("\(passed) durable opening checks passed; \(failures) failed.")
-            if failures != 0 { exit(1) }
+            print("\(reporter.passed) durable opening checks passed; \(reporter.failures) failed.")
+            if reporter.failures != 0 { exit(1) }
             return
         }
         if ProcessInfo.processInfo.arguments.contains("--pid-opening-checks") {
             await pidOpeningChecks(base: base, run: run)
-            print("\(passed) PID mock checks passed; \(failures) failed.")
-            if failures != 0 { exit(1) }
+            print("\(reporter.passed) PID mock checks passed; \(reporter.failures) failed.")
+            if reporter.failures != 0 { exit(1) }
             return
         }
 
@@ -303,7 +310,7 @@ struct CoreChecks {
         await accountSetupChecks(base: base, run: run)
         await usageChecks(base: base, run: run)
         await transportChecks(base: base, run: run)
-        print("\(passed) checks passed; \(failures) failed. Temporary test storage removed on exit.")
-        if failures != 0 { exit(1) }
+        print("\(reporter.passed) checks passed; \(reporter.failures) failed. Temporary test storage removed on exit.")
+        if reporter.failures != 0 { exit(1) }
     }
 }
