@@ -1026,9 +1026,9 @@
     "uz-Latn": "Hisob identity qiymati tasdiqlanmagan. Papkalarni bog‘lash kirishni tasdiqlamaydi."
   },
   "message.8ca62aa4f2": {
-    "en": "This Codex build has not been verified. Switching requires a new compatibility review.",
-    "ru": "Эта сборка Codex не проверена. Для переключения нужна новая проверка совместимости.",
-    "uz-Latn": "Bu Codex yig‘ilmasi tekshirilmagan. Almashish uchun moslikni qayta tekshirish kerak."
+    "en": "Codex signature or installation evidence could not be verified, or the installation changed during this operation. No version allowlist is required.",
+    "ru": "Не удалось проверить подпись или установку Codex, либо установка изменилась во время операции. Список разрешённых версий не требуется.",
+    "uz-Latn": "Codex imzosi yoki o‘rnatma dalillarini tasdiqlab bo‘lmadi yoki o‘rnatma amal davomida o‘zgardi. Versiyalar ruxsat ro‘yxati talab qilinmaydi."
   },
   "message.54dbf3f981": {
     "en": "A unique Codex instance could not be associated with the environment. No application was closed.",
@@ -1751,24 +1751,24 @@
     "uz-Latn": "Bu Mac’da Codex Desktop topilmadi."
   },
   "onboarding.codex.checking": {
-    "en": "Checking Codex compatibility…",
-    "ru": "Проверяем совместимость Codex…",
-    "uz-Latn": "Codex mosligi tekshirilmoqda…"
+    "en": "Verifying the official Codex installation…",
+    "ru": "Проверяем официальную установку Codex…",
+    "uz-Latn": "Rasmiy Codex o‘rnatmasi tekshirilmoqda…"
   },
   "onboarding.codex.verified": {
-    "en": "Codex is compatible with this version of CodexSwoop.",
-    "ru": "Codex совместим с этой версией CodexSwoop.",
-    "uz-Latn": "Codex ushbu CodexSwoop versiyasiga mos."
+    "en": "Official Codex installation verified.",
+    "ru": "Официальная установка Codex проверена.",
+    "uz-Latn": "Rasmiy Codex o‘rnatmasi tasdiqlandi."
   },
   "onboarding.codex.unverified": {
-    "en": "This Codex version hasn't been verified with CodexSwoop.",
-    "ru": "Эта версия Codex ещё не проверена с CodexSwoop.",
-    "uz-Latn": "Bu Codex versiyasi CodexSwoop bilan hali tekshirilmagan."
+    "en": "The official Codex installation could not be verified. Opening is unavailable; local profiles can still be managed.",
+    "ru": "Не удалось проверить официальную установку Codex. Открытие недоступно; локальными профилями можно управлять.",
+    "uz-Latn": "Rasmiy Codex o‘rnatmasini tekshirib bo‘lmadi. Ochish mavjud emas; mahalliy profillarni boshqarish mumkin."
   },
   "onboarding.codex.statusUnverified": {
-    "en": "Compatibility not confirmed",
-    "ru": "Совместимость не подтверждена",
-    "uz-Latn": "Moslik tasdiqlanmagan"
+    "en": "Installation not verified",
+    "ru": "Установка не проверена",
+    "uz-Latn": "O‘rnatma tasdiqlanmagan"
   },
   "onboarding.codex.version": {
     "en": "Version: {0}",
@@ -1909,5 +1909,15 @@
     "en": "Current process and environment ownership was checked. Starting a new operation is safe. This does not confirm that the previous window activation succeeded or verify the ChatGPT account.",
     "ru": "Проверена текущая принадлежность процессов и окружений. Можно безопасно начать новую операцию. Успех предыдущей активации окна и личность аккаунта ChatGPT не подтверждены.",
     "uz-Latn": "Joriy jarayonlar va muhit egaligi tekshirildi. Yangi amalni xavfsiz boshlash mumkin. Bu oldingi oyna faollashgani yoki ChatGPT hisobi shaxsini tasdiqlamaydi."
+  },
+  "onboarding.codex.untested": {
+    "en": "Codex {0} detected. This version has not been individually tested with CodexSwoop.",
+    "ru": "Обнаружен Codex {0}. Эта версия отдельно не тестировалась с CodexSwoop.",
+    "uz-Latn": "Codex {0} aniqlandi. Bu versiya CodexSwoop bilan alohida sinovdan o‘tkazilmagan."
+  },
+  "onboarding.codex.lastTested": {
+    "en": "Last individually tested Codex version: {0}.",
+    "ru": "Последняя отдельно протестированная версия Codex: {0}.",
+    "uz-Latn": "Alohida sinovdan o‘tkazilgan so‘nggi Codex versiyasi: {0}."
   }
 }

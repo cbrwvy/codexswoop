@@ -1,5 +1,7 @@
 # CodexSwoop 1.0.0-rc.1 validation
 
+Historical RC 1 evidence. The source statements below apply to tag `v1.0.0-rc.1`, not the current RC 2 branch. See [RC 2 validation](RC_2_VALIDATION.md) for the update-independent compatibility fix.
+
 Application **1.0.0 (build 4)**, experimental Pre-release, **Apple Silicon arm64 only**, deployment target **macOS 14.0**. Automated validation was completed on 2026-10-14. This report does not claim stable-release, Sonoma runtime, downloaded-app installation, first-launch or official Codex lifecycle acceptance.
 
 ## Source and toolchain

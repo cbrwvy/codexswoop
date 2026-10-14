@@ -1,10 +1,10 @@
 # Building CodexSwoop
 
-The Swift package and shared Xcode project/scheme are the build authorities. The application is **1.0.0 (build 4)**, Swift language mode 6, deployment target **macOS 14.0**. The experimental distribution is **Apple Silicon arm64 only**. Building another architecture does not establish supported runtime compatibility.
+The Swift package and shared Xcode project/scheme are the build authorities. The application is **1.0.0 (build 5)**, Swift language mode 6, deployment target **macOS 14.0**. The experimental distribution is **Apple Silicon arm64 only**. Building another architecture does not establish supported runtime compatibility.
 
 No account credentials, official Codex launch or installation is needed to compile or run the automated suites. Use disposable fixtures for tests; do not point test storage at real account data.
 
-## Toolchain used for RC 1
+## RC 2 toolchain
 
 Automated validation ran on **macOS 27.0.1 (26A434)** with **Xcode 27.1 (27A9275)**, **Apple Swift 6.4**, and **macOS SDK 27.0**. Sonoma runtime acceptance has not been performed. Remote CI uses a separate macOS 15 / Xcode 16.4 lane; local RC acceptance does not establish remote CI success.
 
@@ -58,4 +58,4 @@ UI rendering uses synthetic data. Optional accessibility/menu-bar variants requi
 
 See [Distribution](DISTRIBUTION.md) for the experimental `local-preview` workflow and the separate strict `public-release` workflow. The experimental RC app and DMG are ad hoc signed and not notarized. Strict public-release mode continues to require Developer ID, Hardened Runtime, secure timestamps, notarization/stapling and Gatekeeper acceptance.
 
-[RC validation](RC_1_VALIDATION.md) records the exact source fingerprint, artifact checksums, test counts and remaining acceptance limits. No VM or clean-machine testing is claimed for this Pre-release.
+[RC 2 validation](RC_2_VALIDATION.md) records the exact source fingerprint, artifact checksums, test counts and remaining acceptance limits. No VM or clean-machine testing is claimed for this Pre-release.

@@ -1,6 +1,7 @@
 import Foundation
 
-/// Technical build evidence only; no account, environment or authorization data.
+/// Observed build evidence, never a version allowlist or account identity proof.
+/// Persist the exact installed generation for drift/recovery checks.
 public struct OpeningBuildFingerprint: Codable, Equatable, Sendable {
     public let policyRevision: UInt64
     public let version: String

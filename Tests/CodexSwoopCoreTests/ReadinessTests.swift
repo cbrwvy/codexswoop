@@ -67,19 +67,30 @@ final class FirstRunTests: XCTestCase {
         XCTAssertEqual(FirstRunPresentation.downloadURL.scheme, "https")
         XCTAssertEqual(FirstRunPresentation.downloadURL.host, "learn.chatgpt.com")
     }
-    func testDiscoveryMetadataCannotApproveAnotherBuildOrLocation() {
-        let reviewed = CodexInstallation(url: URL(fileURLWithPath: ReviewedCodexBuild.path),
-            version: ReviewedCodexBuild.version, build: ReviewedCodexBuild.build)
-        XCTAssertTrue(ReviewedCodexBuild.matches(reviewed))
+    func testDiscoveryIsVersionIndependentButNeverSignatureAuthority() {
+        let reviewed = CodexInstallation(url: URL(fileURLWithPath: OfficialCodexPolicy.path),
+            version: LastTestedCodexBuild.version, build: LastTestedCodexBuild.build)
+        XCTAssertTrue(OfficialCodexPolicy.acceptsMetadata(reviewed))
+        XCTAssertTrue(LastTestedCodexBuild.matches(reviewed))
         for candidate in [
-            CodexInstallation(url: reviewed.url, version: "future", build: reviewed.build),
-            CodexInstallation(url: reviewed.url, version: reviewed.version, build: "future"),
-            CodexInstallation(url: URL(fileURLWithPath: "/private/tmp/Codex.app"), version: reviewed.version, build: reviewed.build),
-            CodexInstallation(url: reviewed.url, version: reviewed.version, bundleIdentifier: "fixture.other", build: reviewed.build)
-        ] { XCTAssertFalse(ReviewedCodexBuild.matches(candidate)) }
+            CodexInstallation(url: reviewed.url, version: "26.1007.71326", build: "updated"),
+            CodexInstallation(url: reviewed.url, version: "future", build: "future")
+        ] {
+            XCTAssertTrue(OfficialCodexPolicy.acceptsMetadata(candidate))
+            XCTAssertFalse(LastTestedCodexBuild.matches(candidate))
+        }
+        for candidate in [
+            CodexInstallation(url: URL(fileURLWithPath: "/private/tmp/Codex.app"), version: reviewed.version),
+            CodexInstallation(url: reviewed.url, version: reviewed.version, bundleIdentifier: "fixture.other"),
+            CodexInstallation(url: reviewed.url, version: reviewed.version, executableName: "other")
+        ] { XCTAssertFalse(OfficialCodexPolicy.acceptsMetadata(candidate)) }
         for state in CodexAvailability.allCases {
-            XCTAssertEqual(state.permitsSetup, state == .verified)
+            XCTAssertTrue(state.permitsSetup)
+            XCTAssertEqual(state.permitsOpening, state == .verified)
             XCTAssertFalse(L10n.format(state.messageKey, locale: "en").isEmpty)
+        }
+        for locale in ["en", "ru", "uz-Latn"] {
+            XCTAssertTrue(L10n.format("onboarding.codex.untested", locale: locale, arguments: ["26.1007.71326"]).contains("26.1007.71326"))
         }
     }
     func testDeniedAccessibilityKeepsPIDOpeningButDoesNotPermitWindowInspection() {
@@ -538,5 +549,193 @@ final class InstallationAliasGroupingTests: XCTestCase {
         XCTAssertThrowsError(try refs.revalidate(using: validator)) {
             XCTAssertEqual($0 as? EnvironmentError, .changedDirectory)
         }
+    }
+}
+
+/// Synthetic installations, metadata stores and process evidence only. No official Codex I/O/effects.
+@MainActor
+final class VersionIndependentCodexTests: XCTestCase {
+    private func qaRoot() -> URL {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-xctest-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return root
+    }
+    private func signature(_ hash: String = "b", team: String = OfficialCodexPolicy.teamIdentifier,
+                           identifier: String = CodexBundleInspector.bundleIdentifier) -> CodexSigningIdentity {
+        CodexSigningIdentity(identifier: identifier, teamIdentifier: team, codeDirectoryHash: String(repeating: hash, count: 40))
+    }
+    private func updated() -> CodexInstallation {
+        CodexInstallation(url: URL(fileURLWithPath: OfficialCodexPolicy.path), version: "26.1007.71326", build: "updated-fixture")
+    }
+    func testUpdatedAndFutureOfficialVersionsUsePublisherTrust() throws {
+        for version in ["26.1007.71326", "99.1234.56789"] {
+            let installation = CodexInstallation(url: updated().url, version: version, build: "future-fixture")
+            try OfficialCodexPolicy.validate(installation, signature: signature(), signatureValid: true, before: "new-generation", after: "new-generation")
+            XCTAssertFalse(LastTestedCodexBuild.matches(installation))
+        }
+    }
+    func testCounterfeitPublisherIdentifierAndDamagedSignatureAreRejected() {
+        for proof in [signature(team: "FAKE_TEAM"), signature(identifier: "fixture.counterfeit")] {
+            XCTAssertThrowsError(try OfficialCodexPolicy.validate(updated(), signature: proof, signatureValid: true, before: "same", after: "same"))
+        }
+        XCTAssertThrowsError(try OfficialCodexPolicy.validate(updated(), signature: signature(), signatureValid: false, before: "same", after: "same"))
+    }
+    func testInstallationMutationDuringValidationIsRejected() {
+        XCTAssertThrowsError(try OfficialCodexPolicy.validate(updated(), signature: signature(), signatureValid: true, before: "old-generation", after: "new-generation"))
+    }
+    func testLocalExistingAndManagedProfilesSurviveUpdateAndRename() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        await f.system.updateInstallation(version: "26.1007.71326", build: "updated-fixture")
+        for path in [f.validator.userHome.appendingPathComponent(".codex"), f.validator.userHome.appendingPathComponent("Library/Application Support/Codex")] {
+            try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        for managed in [false, true] {
+            let preview = try await f.store.previewNewAccount(name: managed ? "Updated Managed" : "Updated Existing", managed: managed, validator: f.validator)
+            guard case .committed = try await f.store.commitAccountSetup(preview) else { return XCTFail("Metadata transaction failed") }
+        }
+        _ = try await f.store.rename(id: f.profiles[1].id, name: "Renamed after update")
+        let reopened = try await ProfileStore(root: f.validator.managedRoot).inspectAccountSetup()
+        XCTAssertEqual(reopened.profiles.profiles.count, 4)
+        XCTAssertEqual(reopened.profiles.profiles.first { $0.id == f.profiles[1].id }?.name, "Renamed after update")
+        XCTAssertTrue(f.associations.allSatisfy(reopened.associations.associations.contains))
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty, "Adding/renaming must not invoke the Desktop adapter")
+    }
+    func testUnverifiableSignatureAndUnknownProcessesDoNotBlockMetadataSetupOrRemoval() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        await f.system.setSignatureValid(false); await f.system.configure(unknown: 2)
+        let preview = try await f.store.previewNewAccount(name: "Offline Managed", managed: true, validator: f.validator)
+        guard case let .committed(added) = try await f.store.commitAccountSetup(preview) else { return XCTFail("Local setup blocked") }
+        let profile = try XCTUnwrap(added.profiles.profiles.last)
+        _ = try await f.store.rename(id: profile.id, name: "Offline rename")
+        let removal = try await f.store.previewProfileRemoval(id: profile.id)
+        guard case let .committed(removed) = try await f.store.commitAccountSetup(removal) else { return XCTFail("Local removal blocked") }
+        XCTAssertEqual(removed.profiles.profiles, f.profiles)
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty)
+    }
+    func testNewVersionLaunchesWithValidSignatureAndOwnedProcessEvidence() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot(), running: false)
+        await f.system.updateInstallation(version: "26.1007.71326", build: "updated-fixture")
+        try await f.open()
+        let effects = await f.system.effects, result = await f.coordinator.openingResult
+        XCTAssertEqual(effects, ["launch", "activate"])
+        XCTAssertEqual(result, .launched(f.profiles[1].id))
+        XCTAssertNil(try OpeningOperationJournal(root: f.validator.managedRoot).pending())
+    }
+    func testOfficialUpdateBetweenSwoopInstancesNeedsNoAllowlistChange() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        try await f.open()
+        await f.system.updateInstallation(version: "26.1007.71326", build: "updated-fixture")
+        let restarted = AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(bootSession: { "synthetic-boot" },
+            store: ProfileStore(root: f.validator.managedRoot), validator: f.validator, system: f.system))
+        try await restarted.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
+        let effects = await f.system.effects
+        XCTAssertEqual(effects, ["activate", "activate"])
+    }
+    func testOlderSignedLiveProcessIsIndependentOfReplacementOnDiskAndRecorded() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let stored = await f.system.instances[f.associations[1].environmentID]
+        let old = try XCTUnwrap(stored)
+        let oldSignature = signature("a")
+        await f.system.setSyntheticInstance(f.associations[1].environmentID, DesktopInstance(main: old.main, related: old.related,
+            nativeLaunchDate: old.nativeLaunchDate, signingIdentity: oldSignature))
+        await f.system.updateInstallation(version: "26.1007.71326", build: "new-on-disk")
+        try await f.open()
+        let journal = try JSONSerialization.jsonObject(with: Data(contentsOf: f.validator.managedRoot.appendingPathComponent("opening-journal.json"))) as! [String: Any]
+        let settled = try XCTUnwrap(journal["settled"] as? [String: Any])
+        let disk = try XCTUnwrap(settled["buildFingerprint"] as? [String: Any])
+        let target = try XCTUnwrap(settled["targetInstance"] as? [String: Any])
+        let live = try XCTUnwrap(target["signingIdentity"] as? [String: Any])
+        XCTAssertEqual(disk["version"] as? String, "26.1007.71326")
+        XCTAssertEqual(disk["codeDirectoryHash"] as? String, String(repeating: "b", count: 40))
+        XCTAssertEqual(live["codeDirectoryHash"] as? String, oldSignature.codeDirectoryHash)
+    }
+    func testCounterfeitSignaturePreventsLifecycleEffects() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        await f.system.updateInstallation(version: "26.1007.71326", build: "updated-fixture")
+        await f.system.setSignatureValid(false)
+        do { try await f.open(); XCTFail("Invalid signature admitted") } catch {}
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty)
+    }
+    func testUpdateWithUnknownOwnershipNeverClosesProcesses() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        await f.system.updateInstallation(version: "26.1007.71326", build: "updated-fixture")
+        await f.system.configure(unknown: 1)
+        do { try await f.open(.closeOthersAndOpen); XCTFail("Unknown ownership admitted") }
+        catch { XCTAssertEqual(error as? SwitchingError, .opening(.unknownInstances)) }
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty)
+    }
+    func testSamePIDWithReusedGenerationPreventsDispatchAfterUpdate() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        await f.system.updateInstallation(version: "26.1007.71326", build: "updated-fixture")
+        let stored = await f.system.instances[f.associations[1].environmentID]
+        let old = try XCTUnwrap(stored)
+        let reused = DesktopGeneration(pid: old.main.pid, uid: old.main.uid, started: "reused-fixture", startTimeMicroseconds: 123)
+        do {
+            try await f.coordinator.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true,
+                confirmOpen: { _ in
+                    await f.system.setSyntheticInstance(f.associations[1].environmentID, DesktopInstance(main: reused,
+                        related: [reused], nativeLaunchDate: Date().addingTimeInterval(-1)))
+                    return true
+                })
+            XCTFail("PID reuse admitted")
+        } catch { XCTAssertEqual(error as? SwitchingError, .opening(.processChanged)) }
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty)
+    }
+    func testDiskUpdateAfterJournalIntentPreventsDispatch() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let plan = try await driver.planEnvironmentAccount(profile: f.profiles[1], mode: .openSeparately)
+        try await driver.authorizeEnvironmentAccount(plan, allowPrimary: false)
+        let record = try XCTUnwrap(OpeningOperationJournal(root: f.validator.managedRoot).pending())
+        await f.system.updateInstallation(version: "26.1007.71326", build: "changed-during-operation")
+        do { try await driver.activate(profile: f.profiles[1]); XCTFail("Installation drift admitted") }
+        catch { XCTAssertEqual(error as? EnvironmentError, .incompatibleBuild) }
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty)
+        XCTAssertEqual(try OpeningOperationJournal(root: f.validator.managedRoot).pending(), record)
+        await driver.finishOpening(plan, success: false)
+    }
+    func testUpdateCannotSettlePendingRecoveryOrRewriteItsEvidence() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        await f.system.updateInstallation(version: "26.1007.71326", build: "intent-build")
+        await f.system.configure(activation: true)
+        do { try await f.open(); XCTFail("Synthetic failure ignored") } catch {}
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        let record = try XCTUnwrap(journal.pending())
+        XCTAssertEqual(record.buildFingerprint.version, "26.1007.71326")
+        let names = ["opening-journal.json", "opening-journal-watermark.json"]
+        let before = try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }
+        await f.system.updateInstallation(version: "future-version", build: "replacement", stamp: "e")
+        let restarted = AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(bootSession: { "synthetic-boot" },
+            store: ProfileStore(root: f.validator.managedRoot), validator: f.validator, system: f.system))
+        let needsReview = try await restarted.refreshOpeningRecovery()
+        XCTAssertTrue(needsReview)
+        do { try await restarted.reconcileOpeningRecovery(); XCTFail("Updated build settled previous operation") } catch {}
+        XCTAssertEqual(try journal.pending(), record)
+        XCTAssertEqual(try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }, before)
+        let effects = await f.system.effects
+        XCTAssertEqual(effects, ["activate"])
+    }
+    func testNativeSignatureReaderRejectsAdHocAndTamperedSyntheticBundle() throws {
+        let app = qaRoot().appendingPathComponent("FakeCodex.app"), contents = app.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: contents.appendingPathComponent("Resources"), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: contents.appendingPathComponent("MacOS/ChatGPT"))
+        let info = ["CFBundleIdentifier": CodexBundleInspector.bundleIdentifier, "CFBundleExecutable": "ChatGPT", "CFBundlePackageType": "APPL"]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+        let resource = contents.appendingPathComponent("Resources/fixture")
+        try Data("synthetic signed content".utf8).write(to: resource)
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["--force", "--sign", "-", "--timestamp=none", app.path]
+        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        try process.run(); process.waitUntilExit(); XCTAssertEqual(process.terminationStatus, 0)
+        XCTAssertThrowsError(try NativeDesktopSystem.staticSigningIdentity(app))
+        try Data("tampered fixture".utf8).write(to: resource)
+        XCTAssertThrowsError(try NativeDesktopSystem.staticSigningIdentity(app))
     }
 }

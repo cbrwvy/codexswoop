@@ -145,10 +145,9 @@ import ServiceManagement
         for state in [CodexAvailability.missing, .checking, .unverified] {
             manager.previewInstallationForChecks(state)
             let before = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
-            precondition(manager.addAccountBlockedReason(managed: true) != nil)
-            let added = try MainThreadPreparation.wait { await manager.addAccount(name: "Blocked fixture", managed: true) }
+            precondition(manager.addAccountBlockedReason(managed: true) == nil)
             let after = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
-            precondition(!added && after == before)
+            precondition(after == before, "Read-only discovery cannot mutate local profiles")
             try render(MenuBarView(manager: manager), "onboarding-" + state.rawValue)
             try render(ProfileEditor(manager: manager, profile: nil), "onboarding-form-" + state.rawValue)
             manager.errorMessage = nil
@@ -175,7 +174,7 @@ import ServiceManagement
         precondition(manager.addAccountBlockedReason(managed: false) == nil)
         let detected = manager.installation
         manager.previewInstallationForChecks(.missing)
-        precondition(manager.addAccountBlockedReason(managed: false) == L10n.text("onboarding.codex.missing"))
+        precondition(manager.addAccountBlockedReason(managed: false) == nil)
         try render(ProfileEditor(manager: manager, profile: nil), "codex-not-installed")
         manager.previewInstallationForChecks(.verified)
         precondition(manager.installation == detected)
@@ -184,6 +183,9 @@ import ServiceManagement
         precondition(manager.addAccountBlockedReason(managed: false) == L10n.text("account.unavailable"))
         try render(ProfileEditor(manager: manager, profile: nil), "default-unavailable")
         try FileManager.default.moveItem(at: user.appendingPathComponent("unavailable-fixture"), to: defaultHome)
+        manager.previewInstallationForChecks(.verified, version: "26.1007.71326", build: "updated-fixture")
+        precondition(manager.installationCompatibilityNotice?.contains("26.1007.71326") == true)
+        try render(ProfileEditor(manager: manager, profile: nil, managed: true, initialName: "Work"), "updated-version-continue-enabled")
         try MainThreadPreparation.wait {
             guard await manager.addAccount(name: "Fictional Primary", managed: false),
                   await manager.addAccount(name: "Fictional Work", managed: true) else { fatalError(manager.errorMessage ?? "Fixture add failed") }
@@ -192,6 +194,7 @@ import ServiceManagement
         let activeBeforeUpdate = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
         manager.previewInstallationForChecks(.unverified)
         precondition(!manager.showsWelcome && manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0) != nil })
+        precondition(manager.addAccountBlockedReason(managed: true) == nil, "Unverifiable processes/signatures only block lifecycle, not metadata setup")
         let activeAfterUpdate = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
         precondition(activeAfterUpdate == activeBeforeUpdate)
         try render(MenuBarView(manager: manager), "updated-codex-profiles-preserved")

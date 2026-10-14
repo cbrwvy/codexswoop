@@ -1,6 +1,6 @@
 # User Guide
 
-Applies to experimental **1.0.0 (4)** / `v1.0.0-rc.1`: Apple Silicon arm64 only, deployment target macOS 14.0 (Sonoma runtime acceptance not performed). Automated checks run on macOS 27.0.1 (26A434); final installer/first-launch acceptance is untested. Only Codex **26.1007.21159 (20052)** at `/Applications/ChatGPT.app` is supported; other builds/locations are unsupported. The app is ad hoc signed and not notarized. Technical ChatGPT identity verification is absent, full authentication isolation is not guaranteed, and Live Usage is disabled (identity/Usage deferred to 1.1). See [Release Notes](RELEASE_NOTES_v1.0.0-rc.1.md) for installation and Gatekeeper guidance.
+Applies to experimental **1.0.0 (5)** / `v1.0.0-rc.2`: Apple Silicon arm64 only, deployment target macOS 14.0 (Sonoma runtime acceptance not performed). Automated checks run on macOS 27.0.1 (26A434); final installer/first-launch acceptance is untested. Official Codex at `/Applications/ChatGPT.app` is checked dynamically by publisher signature and installation/process evidence. Ordinary version/build updates are accepted without a CodexSwoop update. Last individually tested: **26.1007.21159 (20052)**; newer versions are informationally untested. Other installation paths remain unsupported for opening. The app is ad hoc signed and not notarized. Technical ChatGPT identity verification is absent, full authentication isolation is not guaranteed, and Live Usage is disabled (identity/Usage deferred to 1.1). See [Release Notes](RELEASE_NOTES_v1.0.0-rc.2.md) for installation and Gatekeeper guidance.
 
 ## Local profiles and ChatGPT accounts
 
@@ -52,7 +52,7 @@ Live Codex usage limits are not available in the current version.
 ## Limitations
 
 - Profile names and environment references do not establish ChatGPT account identity.
-- A supported Codex build is required. A newly updated or different build can be detected but remain unsupported until reviewed.
+- Opening requires a currently verified official Codex installation and coherent process/environment evidence. Ordinary updates are supported without a new CodexSwoop release; a not-individually-tested version notice is informational.
 - Unknown process ownership or an uncertain operation can block more actions and require review.
 - Closing multiple Codex instances is a series of normal-quit requests, not one atomic or reversible action.
 - Managed directories do not guarantee complete authentication separation because services may be shared outside those directories.

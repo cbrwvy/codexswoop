@@ -13,13 +13,15 @@ public struct EnvironmentOperationScope: Equatable, Sendable {
     public let retainedResearch: [EnvironmentAssociation]
     public let managed: ManagedEnvironmentCatalog
     public let expiresAt: Date
-    public init(plan: AccountOpeningPlan, managed: ManagedEnvironmentCatalog, retainedResearch: [EnvironmentAssociation] = [], expiresAt: Date = Date().addingTimeInterval(120)) {
+    public let buildFingerprint: OpeningBuildFingerprint?
+    public init(plan: AccountOpeningPlan, managed: ManagedEnvironmentCatalog, retainedResearch: [EnvironmentAssociation] = [], expiresAt: Date = Date().addingTimeInterval(120), buildFingerprint: OpeningBuildFingerprint? = nil) {
         id = plan.id; mode = plan.mode; target = plan.association; targetInstance = plan.targetInstance
         others = plan.others.map { DesktopInventoryEntry(association: $0.association, instance: $0.instance) }
         self.retainedResearch = retainedResearch
-        profiles = plan.profiles; associations = plan.associations; self.managed = managed; self.expiresAt = expiresAt
+        profiles = plan.profiles; associations = plan.associations; self.managed = managed; self.expiresAt = expiresAt; self.buildFingerprint = buildFingerprint
     }
     public func validate() throws {
+        try buildFingerprint?.validate()
         guard expiresAt > Date(), expiresAt.timeIntervalSinceNow <= 300,
               target.kind == .managed || target.kind == .standardExternal,
               associations.associations.contains(target), profiles.profiles.contains(where: { $0.id == target.profileID }),
