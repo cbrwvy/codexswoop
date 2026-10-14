@@ -51,14 +51,14 @@ public struct DesktopProcessMetadata: Equatable, Sendable {
 
 }
 
-/// Version-specific adapter. Legacy effects remain closed; environment effects require one exact confirmed scope.
+/// Publisher-verified adapter. Legacy effects remain closed; environment effects require one exact confirmed scope.
 public actor NativeDesktopSystem: DesktopSystem {
     public nonisolated var lifecycleAllowed: Bool { DesktopIntegrationPolicy.lifecycleEnabled }
     public nonisolated var standardLifecycleAllowed: Bool { DesktopIntegrationPolicy.primaryLifecycleEnabled }
     public nonisolated var environmentActivationAllowed: Bool { EnvironmentOpeningPolicy.nativeActivationEnabled }
     private var retainedWindows: [UUID: NativeWindowIdentity] = [:]
     private let validator: EnvironmentValidator
-    private let app = URL(fileURLWithPath: ReviewedCodexBuild.path)
+    private let app = URL(fileURLWithPath: OfficialCodexPolicy.path)
     private let pidActivationScope: PIDActivationScope?
     private var pidActivationConsumed = false
     private var operationScope: EnvironmentOperationScope?
@@ -67,6 +67,7 @@ public actor NativeDesktopSystem: DesktopSystem {
     private var scopeActivated = false, scopeLaunched = false
     private var scopeLaunchedInstance: DesktopInstance?
     private var validatedInstallation: InstallationValidationSnapshot?
+    private var validatedBuild: OpeningBuildFingerprint?
     private let dispatchLedger = EnvironmentDispatchLedger()
     private var submittedLauncher: (id: UUID, process: Process)?
     public init(validator: EnvironmentValidator = EnvironmentValidator(), pidActivationScope: PIDActivationScope? = nil) {
@@ -88,7 +89,7 @@ public actor NativeDesktopSystem: DesktopSystem {
         let catalog = try await ProfileStore(root: validator.managedRoot).inspectAssociations()
         guard catalog.revision == revision, catalog.associations.contains(association) else { throw EnvironmentOpeningError.stalePlan }
         try validator.revalidate(association)
-        try Self.validateLiveSignature(instance.main.pid)
+        _ = try Self.validateLiveSignature(instance.main.pid, expected: instance.signingIdentity)
         try Task.checkCancellation()
         guard !pidActivationConsumed, pidActivationScope?.permits(association, revision: revision, instance: instance) == true else {
             throw EnvironmentOpeningError.unavailable
@@ -100,7 +101,7 @@ public actor NativeDesktopSystem: DesktopSystem {
     private func dispatchPIDActivation(_ association: EnvironmentAssociation, instance: DesktopInstance, scope: EnvironmentOperationScope? = nil) async throws {
         if let scope { try await checkDispatchCatalogs(scope) }
         try validator.revalidate(association)
-        try Self.validateLiveSignature(instance.main.pid)
+        _ = try Self.validateLiveSignature(instance.main.pid, expected: instance.signingIdentity)
         let ledger = dispatchLedger
         try await MainActor.run {
             guard let target = NSRunningApplication(processIdentifier: instance.main.pid), !target.isTerminated,
@@ -137,37 +138,56 @@ public actor NativeDesktopSystem: DesktopSystem {
     public func validateInstallation() async throws {
         guard FileManager.default.fileExists(atPath: app.path) else { throw EnvironmentError.codexNotInstalled }
         guard app.resolvingSymlinksInPath() == app, let installation = CodexBundleInspector.inspect(app),
-              ReviewedCodexBuild.matches(installation) else { throw EnvironmentError.incompatibleBuild }
+              OfficialCodexPolicy.acceptsMetadata(installation) else { throw EnvironmentError.incompatibleBuild }
         let snapshot = try InstallationValidationSnapshot.capture(app)
-        if validatedInstallation == snapshot { return }
-        validatedInstallation = nil
-        let requirement = "-R=" + ReviewedCodexBuild.signingRequirement
-        let result = try await command("/usr/bin/codesign", ["--verify", "--deep", "--strict", requirement, app.path])
+        if validatedInstallation == snapshot, validatedBuild != nil { return }
+        validatedInstallation = nil; validatedBuild = nil
+        let result = try await command("/usr/bin/codesign", ["--verify", "--deep", "--strict",
+            "-R=" + OfficialCodexPolicy.signingRequirement, app.path])
         guard result.status == 0 else { throw EnvironmentError.incompatibleBuild }
+        let signature = try Self.staticSigningIdentity(app)
         let archive = try FileHandle(forReadingFrom: app.appendingPathComponent("Contents/Resources/app.asar"))
         defer { try? archive.close() }
         var hash = SHA256()
         while let bytes = try archive.read(upToCount: 1_048_576), !bytes.isEmpty { hash.update(data: bytes) }
-        guard hash.finalize().map({ String(format: "%02x", $0) }).joined() == ReviewedCodexBuild.archiveSHA256 else {
-            throw EnvironmentError.incompatibleBuild
-        }
-        guard try InstallationValidationSnapshot.capture(app) == snapshot else { throw EnvironmentError.incompatibleBuild }
-        validatedInstallation = snapshot
+        let archiveHash = hash.finalize().map { String(format: "%02x", $0) }.joined()
+        let after = try InstallationValidationSnapshot.capture(app)
+        try OfficialCodexPolicy.validate(installation, signature: signature, signatureValid: true,
+            before: snapshot.fingerprint, after: after.fingerprint)
+        guard after == snapshot, CodexBundleInspector.inspect(app) == installation else { throw EnvironmentError.incompatibleBuild }
+        let build = OpeningBuildFingerprint(policyRevision: 2, version: installation.version, build: installation.build,
+            signingRequirement: OfficialCodexPolicy.signingRequirement, archiveSHA256: archiveHash,
+            codeDirectoryHash: signature.codeDirectoryHash, bundleGenerationSHA256: try snapshot.fingerprint)
+        try build.validate()
+        validatedInstallation = snapshot; validatedBuild = build
     }
 
     public func openingBuildFingerprint() async throws -> OpeningBuildFingerprint {
         try await validateInstallation()
-        guard let snapshot = validatedInstallation else { throw EnvironmentError.incompatibleBuild }
-        var code: SecStaticCode?, info: CFDictionary?
+        guard let build = validatedBuild, let snapshot = validatedInstallation,
+              try InstallationValidationSnapshot.capture(app) == snapshot else { throw EnvironmentError.incompatibleBuild }
+        return build
+    }
+
+    private static func signingIdentity(_ code: SecStaticCode) throws -> CodexSigningIdentity {
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let values = info as? [String: Any], let identifier = values[kSecCodeInfoIdentifier as String] as? String,
+              let team = values[kSecCodeInfoTeamIdentifier as String] as? String,
+              let hash = values[kSecCodeInfoUnique as String] as? Data else { throw EnvironmentError.incompatibleBuild }
+        let value = CodexSigningIdentity(identifier: identifier, teamIdentifier: team,
+            codeDirectoryHash: hash.map { String(format: "%02x", $0) }.joined())
+        try value.validate(); return value
+    }
+
+    static func staticSigningIdentity(_ app: URL) throws -> CodexSigningIdentity {
+        var code: SecStaticCode?, requirement: SecRequirement?
         guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code,
-              SecCodeCopySigningInformation(code, [], &info) == errSecSuccess,
-              let hash = (info as? [String: Any])?[kSecCodeInfoUnique as String] as? Data else { throw EnvironmentError.incompatibleBuild }
-        let value = OpeningBuildFingerprint(version: ReviewedCodexBuild.version, build: ReviewedCodexBuild.build,
-            signingRequirement: ReviewedCodexBuild.signingRequirement, archiveSHA256: ReviewedCodexBuild.archiveSHA256,
-            codeDirectoryHash: hash.map { String(format: "%02x", $0) }.joined(), bundleGenerationSHA256: try snapshot.fingerprint)
-        try value.validate()
-        guard try InstallationValidationSnapshot.capture(app) == snapshot else { throw EnvironmentError.incompatibleBuild }
-        return value
+              SecRequirementCreateWithString(OfficialCodexPolicy.signingRequirement as CFString, [], &requirement) == errSecSuccess,
+              SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess else {
+            throw EnvironmentError.incompatibleBuild
+        }
+        return try signingIdentity(code)
     }
 
     private struct Row: Equatable {
@@ -292,8 +312,12 @@ public actor NativeDesktopSystem: DesktopSystem {
                 return running.launchDate
             }
             guard let date else { throw EnvironmentError.processChanged }
-            try Self.validateLiveSignature(pid)
-            matched.append(DesktopInstance(main: main, related: members, nativeLaunchDate: date))
+            let signature = try Self.validateLiveSignature(pid)
+            guard let row = before[pid],
+                  try DesktopProcessMetadata.parse("\(pid) \(row.parent) \(main.uid) \(main.started) \(app.path)/Contents/MacOS/ChatGPT").preciseGeneration() == main else {
+                throw EnvironmentError.processChanged
+            }
+            matched.append(DesktopInstance(main: main, related: members, nativeLaunchDate: date, signingIdentity: signature))
         }
         guard ContinuousClock.now < deadline else { throw EnvironmentError.ambiguousInstance }
         let observation = DesktopObservation(matching: matched, ambiguous: false)
@@ -367,7 +391,7 @@ public actor NativeDesktopSystem: DesktopSystem {
         try validator.revalidate(association)
         try await validateInstallation()
         guard try await observe(association).unique() == instance else { throw EnvironmentError.processChanged }
-        try Self.validateLiveSignature(instance.main.pid)
+        _ = try Self.validateLiveSignature(instance.main.pid, expected: instance.signingIdentity)
         if let scope { try await checkDispatchCatalogs(scope) }
         try validator.revalidate(association)
         try Task.checkCancellation()
@@ -531,12 +555,14 @@ public actor NativeDesktopSystem: DesktopSystem {
     }
     private func checkDispatchCatalogs(_ scope: EnvironmentOperationScope) async throws {
         guard operationScope == scope else { throw EnvironmentOpeningError.confirmationRequired }
-        try await checkScopeCatalogs(scope)
+        try await checkScopeMetadata(scope)
         guard operationScope == scope else { throw EnvironmentOpeningError.stalePlan }
     }
     private func checkScopeMetadata(_ scope: EnvironmentOperationScope) async throws {
         try await checkScopeCatalogs(scope)
-        try await validateInstallation()
+        guard let expected = scope.buildFingerprint, try await openingBuildFingerprint() == expected else {
+            throw EnvironmentError.incompatibleBuild
+        }
     }
     private func checkScopeCatalogs(_ scope: EnvironmentOperationScope) async throws {
         try Task.checkCancellation(); try scope.validate()
@@ -572,7 +598,7 @@ public actor NativeDesktopSystem: DesktopSystem {
         try await recheckScope(scope)
         guard !scopeActivated, instance == (scopeLaunchedInstance ?? scope.targetInstance),
               scope.mode == .openSeparately || scopeClosed.count == scope.others.count else { throw EnvironmentOpeningError.stalePlan }
-        try Self.validateLiveSignature(instance.main.pid)
+        _ = try Self.validateLiveSignature(instance.main.pid, expected: instance.signingIdentity)
         scopeActivated = true
         try await dispatchPIDActivation(scope.target, instance: instance, scope: scope)
     }
@@ -664,23 +690,25 @@ public actor NativeDesktopSystem: DesktopSystem {
         try Task.checkCancellation()
     }
 
-    private static func validateLiveSignature(_ pid: Int32) throws {
-        var guest: SecCode?, requirement: SecRequirement?, liveStatic: SecStaticCode?, diskStatic: SecStaticCode?
+    /// Validate the addressed live guest against the official publisher, not the replacement on disk.
+    /// The additional cdhash requirement binds extracted signing information to this guest; if the
+    /// OS cannot supply coherent evidence after an update, fail closed rather than guess ownership.
+    private static func validateLiveSignature(_ pid: Int32, expected: CodexSigningIdentity? = nil) throws -> CodexSigningIdentity {
+        var guest: SecCode?, requirement: SecRequirement?, liveStatic: SecStaticCode?
         let attributes = [kSecGuestAttributePid as String: NSNumber(value: pid)] as CFDictionary
-        let rule = "identifier \"com.openai.codex\" and anchor apple generic and certificate leaf[subject.OU] = \"2DC432GLL2\""
         guard SecCodeCopyGuestWithAttributes(nil, attributes, [], &guest) == errSecSuccess, let guest,
-              SecRequirementCreateWithString(rule as CFString, [], &requirement) == errSecSuccess,
+              SecRequirementCreateWithString(OfficialCodexPolicy.signingRequirement as CFString, [], &requirement) == errSecSuccess,
               SecCodeCheckValidity(guest, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess,
-              SecCodeCopyStaticCode(guest, [], &liveStatic) == errSecSuccess, let liveStatic,
-              SecStaticCodeCreateWithPath(URL(fileURLWithPath: "/Applications/ChatGPT.app") as CFURL, [], &diskStatic) == errSecSuccess, let diskStatic else {
+              SecCodeCopyStaticCode(guest, [], &liveStatic) == errSecSuccess, let liveStatic else {
             throw EnvironmentError.incompatibleBuild
         }
-        var liveInfo: CFDictionary?, diskInfo: CFDictionary?
-        guard SecCodeCopySigningInformation(liveStatic, [], &liveInfo) == errSecSuccess,
-              SecCodeCopySigningInformation(diskStatic, [], &diskInfo) == errSecSuccess,
-              let liveHash = (liveInfo as? [String: Any])?[kSecCodeInfoUnique as String] as? Data,
-              let diskHash = (diskInfo as? [String: Any])?[kSecCodeInfoUnique as String] as? Data,
-              liveHash == diskHash else { throw EnvironmentError.incompatibleBuild }
+        let identity = try signingIdentity(liveStatic)
+        let boundRule = OfficialCodexPolicy.signingRequirement + " and cdhash H\"" + identity.codeDirectoryHash + "\""
+        var bound: SecRequirement?
+        guard SecRequirementCreateWithString(boundRule as CFString, [], &bound) == errSecSuccess,
+              SecCodeCheckValidity(guest, SecCSFlags(rawValue: kSecCSStrictValidate), bound) == errSecSuccess,
+              expected == nil || expected == identity else { throw EnvironmentError.incompatibleBuild }
+        return identity
     }
 
     private func command(_ executable: String, _ arguments: [String], deadline outerDeadline: ContinuousClock.Instant? = nil) async throws -> (status: Int32, output: String) {

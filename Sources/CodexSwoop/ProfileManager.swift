@@ -61,7 +61,11 @@ final class ProfileManager: ObservableObject {
     var showsWelcome: Bool { FirstRunPresentation.showsWelcome(profileCount: profiles.count, storageReady: storageReady) }
     var installationBlockedReason: String? {
         installation == nil ? L10n.text("onboarding.codex.missing")
-            : (codexAvailability.permitsSetup ? nil : L10n.text(codexAvailability.messageKey))
+            : (codexAvailability.permitsOpening ? nil : L10n.text(codexAvailability.messageKey))
+    }
+    var installationCompatibilityNotice: String? {
+        guard let installation, !LastTestedCodexBuild.matches(installation) else { return nil }
+        return L10n.text("onboarding.codex.untested", installation.version)
     }
     var friendlyError: String { L10n.text(needsOpeningReview ? "review.previousOperation" : "onboarding.actionFailed") }
 
@@ -146,7 +150,7 @@ final class ProfileManager: ObservableObject {
         #endif
         installation = CodexDetector().detect(preferredPath: isTestStorage ? testPreferredPath : defaults.string(forKey: "codexApplicationPath"))
         guard let found = installation else { codexAvailability = .missing; return }
-        guard ReviewedCodexBuild.matches(found), !isTestStorage else { codexAvailability = .unverified; return }
+        guard OfficialCodexPolicy.acceptsMetadata(found), !isTestStorage else { codexAvailability = .unverified; return }
         codexAvailability = .checking
         let revision = detectionRevision
         detectionTask = Task { [weak self] in
@@ -165,10 +169,10 @@ final class ProfileManager: ObservableObject {
 
     #if DEBUG
     /// Only isolated fixture UI can inject a display state; its desktop adapter has no native effects.
-    func previewInstallationForChecks(_ state: CodexAvailability) {
+    func previewInstallationForChecks(_ state: CodexAvailability, version: String? = nil, build: String? = nil) {
         precondition(isTestStorage)
-        installation = state == .missing ? nil : CodexInstallation(url: URL(fileURLWithPath: ReviewedCodexBuild.path),
-            version: state == .unverified ? "0.0-fixture" : ReviewedCodexBuild.version, build: ReviewedCodexBuild.build)
+        installation = state == .missing ? nil : CodexInstallation(url: URL(fileURLWithPath: OfficialCodexPolicy.path),
+            version: version ?? (state == .unverified ? "0.0-fixture" : LastTestedCodexBuild.version), build: build ?? LastTestedCodexBuild.build)
         codexAvailability = state
     }
     #endif
@@ -244,7 +248,7 @@ final class ProfileManager: ObservableObject {
         if needsOpeningReview { return L10n.text("review.previousOperation") }
         if !storageReady || !associationsReady || !managedStorageReady { return L10n.text("account.storageUnavailable") }
         if !managed && associations.contains(where: { $0.kind == .standardExternal }) { return L10n.text("account.alreadyLinked") }
-        if let reason = installationBlockedReason { return reason }
+        // Local metadata preparation performs no Codex validation, authorization read or lifecycle effect.
         if !managed {
             do {
                 _ = try validator.directory(validator.userHome.appendingPathComponent(".codex").path, privateOnly: false)

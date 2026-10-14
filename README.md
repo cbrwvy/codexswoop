@@ -8,7 +8,7 @@
 
 <p align="center">A native macOS menu bar app for organizing local profiles and their Codex environments.</p>
 
-<p align="center"><sub>1.0.0-rc.1 · Experimental Pre-release · Apple Silicon arm64 · MIT License</sub></p>
+<p align="center"><sub>1.0.0-rc.2 · Experimental Pre-release · Apple Silicon arm64 · MIT License</sub></p>
 
 <p align="center">
   <img src="docs/assets/screenshots/codexswoop-overview.png" alt="CodexSwoop menu bar popover with two fictional profiles" width="480">
@@ -20,12 +20,12 @@
 
 Keep local Codex environments organized under profile names you choose. CodexSwoop points to environments used by the official Codex app; sign-in stays in Codex.
 
-A profile name is only a local label and does not verify which ChatGPT account is signed in.
+A profile name is only a local label and does not verify which ChatGPT account is signed in. Adding, renaming and removing profiles does not require a particular Codex version or a verified Codex installation. Metadata integrity and pending-recovery safeguards still apply.
 
 ## Features
 
 - Link the standard Codex environment or prepare a separate Managed environment.
-- Open a linked environment separately when its build and safety checks allow it.
+- Open a linked environment separately when its publisher, installation and ownership checks allow it.
 - Use **Close Others & Open** with confirmation when running instances can be identified safely.
 - Rename or remove local profile records without deleting underlying Codex authorization directories.
 - Review Codex detection and Accessibility status, change the app language, and configure Launch at Login in Settings.
@@ -50,11 +50,11 @@ CodexSwoop stores local profile and environment-reference metadata. The official
 
 ## Installation
 
-The first GitHub Pre-release candidate is **1.0.0 (build 4)**. Download the DMG and checksum from [GitHub Pre-release v1.0.0-rc.1](https://github.com/cbrwvy/codexswoop/releases/tag/v1.0.0-rc.1). Its DMG is explicitly labeled **unnotarized**, is **ad hoc signed**, contains an **ad hoc-signed** app, and has no Developer ID signature. macOS Gatekeeper may block first launch. See the [Release Notes and installation instructions](docs/RELEASE_NOTES_v1.0.0-rc.1.md) before installing. This is an experimental candidate, not a fully validated stable release.
+The next GitHub Pre-release candidate is **1.0.0 (build 5)**. RC 2 publication is pending approval. See the [RC 2 Release Notes](docs/RELEASE_NOTES_v1.0.0-rc.2.md); the candidate fixes ordinary official Codex updates blocking core functions. Its DMG is explicitly labeled **unnotarized**, is **ad hoc signed**, contains an **ad hoc-signed** app, and has no Developer ID signature. macOS Gatekeeper may block first launch. See the [Release Notes and installation instructions](docs/RELEASE_NOTES_v1.0.0-rc.2.md) before installing. This is an experimental candidate, not a fully validated stable release.
 
 ## Getting Started
 
-With the supported Codex build, follow [Getting Started](docs/GETTING_STARTED.md) to link an existing environment or prepare a Managed one.
+With a verified official Codex installation, follow [Getting Started](docs/GETTING_STARTED.md) to link an existing environment or prepare a Managed one.
 
 ## Privacy & Safety
 
@@ -74,7 +74,7 @@ See [Security](docs/SECURITY.md) for the project's security boundaries.
 
 - **Apple Silicon arm64 only** (M1 or newer); Intel is not supported. Deployment target: **macOS 14.0**. Sonoma runtime acceptance has **not** been performed.
 - Automated candidate checks run on **macOS 27.0.1 (26A434)**. This does not establish final installer/first-launch acceptance or compatibility on other macOS versions. VM and clean-machine tests are not performed for this Pre-release.
-- Only official **Codex 26.1007.21159 (20052)** at **`/Applications/ChatGPT.app`** is supported. Other versions and locations are not supported; detection alone does not establish compatibility.
+- Official Codex at **`/Applications/ChatGPT.app`** is verified by Bundle ID, the OpenAI signing requirement and Team ID, executable, canonical path and current installation/process evidence. Ordinary version/build changes do not block core functions. **26.1007.21159 (20052)** remains the last individually tested version; newer versions are shown as informationally untested. Detection alone does not establish trust.
 - ChatGPT account identity is **not technically verified**. Full authentication isolation is **not guaranteed**. Verify the signed-in account yourself inside Codex.
 - **Live Usage is disabled**. Live Usage and technical identity verification are deferred to 1.1.
 - The first DMG uses an **ad hoc app signature**, has **no Developer ID**, and is **not notarized**. Gatekeeper acceptance is not claimed.

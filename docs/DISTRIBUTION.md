@@ -2,11 +2,11 @@
 
 ## Experimental first GitHub Pre-release
 
-Approved candidate: **1.0.0 (build 4)**, tag **`v1.0.0-rc.1`**. The artifact is **`CodexSwoop-1.0.0-rc.1-macos-arm64-unnotarized.dmg`**. It contains an **ad hoc-signed** app, has no Developer ID signature, and is **not notarized**. It is an experimental Pre-release, not an accepted stable release. The release is explicitly marked as a GitHub Pre-release, with Latest disabled.
+Approved candidate: **1.0.0 (build 5)**, tag **`v1.0.0-rc.2`**. The artifact is **`CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg`**. It contains an **ad hoc-signed** app, has no Developer ID signature, and is **not notarized**. It is an experimental Pre-release, not an accepted stable release. The release is explicitly marked as a GitHub Pre-release, with Latest disabled.
 
-Apple Silicon **arm64 only** (M1 or newer). The deployment target is **macOS 14.0**, but Sonoma runtime acceptance is **not performed**. Automated checks run on **macOS 27.0.1 (26A434)**. Final installer/first-launch acceptance, VM and clean-machine testing are not performed. Only official **Codex 26.1007.21159 (20052)** at **`/Applications/ChatGPT.app`** is supported; other versions and paths are unsupported. ChatGPT identity is not technically verified, full authentication isolation is not guaranteed, and Live Usage is disabled. Identity verification and Live Usage are deferred to 1.1.
+Apple Silicon **arm64 only** (M1 or newer). The deployment target is **macOS 14.0**, but Sonoma runtime acceptance is **not performed**. Automated checks run on **macOS 27.0.1 (26A434)**. Final installer/first-launch acceptance, VM and clean-machine testing are not performed. Official Codex at **`/Applications/ChatGPT.app`** must pass the OpenAI signature/Team ID, Bundle ID, executable, canonical path and live ownership checks. Version/build numbers are informational and are not an allowlist. Last individually tested: **26.1007.21159 (20052)**. ChatGPT identity is not technically verified, full authentication isolation is not guaranteed, and Live Usage is disabled. Identity verification and Live Usage are deferred to 1.1.
 
-See [Release Notes](RELEASE_NOTES_v1.0.0-rc.1.md) for user installation, Gatekeeper warnings, limitations and bug reports, and [RC evidence](RC_1_VALIDATION.md) for exact hashes and checks.
+See [Release Notes](RELEASE_NOTES_v1.0.0-rc.2.md) for user installation, Gatekeeper warnings, limitations and bug reports, and [RC evidence](RC_2_VALIDATION.md) for exact hashes and checks.
 
 ## Existing local-preview workflow
 
@@ -18,23 +18,23 @@ The packager accepts a prebuilt app and never rewrites version/build metadata or
   --mode local-preview \
   --app build/release-arm64/CodexSwoop.app \
   --expected-version 1.0.0 \
-  --output-dir build/rc1
+  --output-dir build/rc2
 ```
 
 The workflow produces `CodexSwoop-1.0.0-macos-arm64-local-preview.dmg` and its SHA-256 sidecar. For this owner-approved experimental Pre-release, label the completed image explicitly, ad hoc sign the container, regenerate the filename-bearing sidecar, and validate it again:
 
 ```sh
-mv build/rc1/CodexSwoop-1.0.0-macos-arm64-local-preview.dmg \
-  build/rc1/CodexSwoop-1.0.0-rc.1-macos-arm64-unnotarized.dmg
+mv build/rc2/CodexSwoop-1.0.0-macos-arm64-local-preview.dmg \
+  build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg
 codesign --sign - --timestamp=none \
-  build/rc1/CodexSwoop-1.0.0-rc.1-macos-arm64-unnotarized.dmg
+  build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg
 codesign --verify --strict --verbose=2 \
-  build/rc1/CodexSwoop-1.0.0-rc.1-macos-arm64-unnotarized.dmg
-(cd build/rc1 && shasum -a 256 \
-  CodexSwoop-1.0.0-rc.1-macos-arm64-unnotarized.dmg \
-  > CodexSwoop-1.0.0-rc.1-macos-arm64-unnotarized.dmg.sha256)
+  build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg
+(cd build/rc2 && shasum -a 256 \
+  CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg \
+  > CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg.sha256)
 ./scripts/validate-release-artifact.sh \
-  --dmg build/rc1/CodexSwoop-1.0.0-rc.1-macos-arm64-unnotarized.dmg \
+  --dmg build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg \
   --mode local-preview --expected-version 1.0.0
 ```
 

@@ -64,14 +64,27 @@ actor ReleaseDesktopSystem: DesktopSystem {
     func removeSyntheticInstance(_ id: UUID) { instances.removeValue(forKey: id) }
     func replace(_ association: EnvironmentAssociation) { instances[association.environmentID] = Self.instance(20) }
     var buildStamp = "c"
+    var installationVersion = "synthetic", installationBuild = "fixture"
+    var signatureValid = true
     func changeBuild() { buildStamp = "d" }
+    func updateInstallation(version: String, build: String, stamp: String = "d") {
+        installationVersion = version; installationBuild = build; buildStamp = stamp
+    }
+    func setSignatureValid(_ value: Bool) { signatureValid = value }
     func setSyntheticInstance(_ id: UUID, _ instance: DesktopInstance) { instances[id] = instance }
-    func openingBuildFingerprint() async throws -> OpeningBuildFingerprint {
-        OpeningBuildFingerprint(version: "synthetic", build: "fixture", signingRequirement: "synthetic-only",
+    func openingBuildFingerprint() async throws -> OpeningBuildFingerprint { try currentBuildFingerprint() }
+    private func currentBuildFingerprint() throws -> OpeningBuildFingerprint {
+        OpeningBuildFingerprint(version: installationVersion, build: installationBuild, signingRequirement: OfficialCodexPolicy.signingRequirement,
             archiveSHA256: String(repeating: "a", count: 64), codeDirectoryHash: String(repeating: "b", count: 40),
             bundleGenerationSHA256: String(repeating: buildStamp, count: 64))
     }
-    func validateInstallation() {}
+    func validateInstallation() throws {
+        try OfficialCodexPolicy.validate(CodexInstallation(url: URL(fileURLWithPath: OfficialCodexPolicy.path),
+            version: installationVersion, build: installationBuild),
+            signature: CodexSigningIdentity(identifier: CodexBundleInspector.bundleIdentifier,
+                teamIdentifier: OfficialCodexPolicy.teamIdentifier, codeDirectoryHash: String(repeating: "b", count: 40)),
+            signatureValid: signatureValid, before: buildStamp, after: buildStamp)
+    }
     func observe(_ association: EnvironmentAssociation, timeout: Duration) -> DesktopObservation {
         DesktopObservation(matching: instances[association.environmentID].map { [$0] } ?? [], ambiguous: false)
     }
@@ -90,7 +103,12 @@ actor ReleaseDesktopSystem: DesktopSystem {
         instances[specification.association.environmentID] = Self.instance(10)
     }
     func authorizeEnvironmentOperation(_ value: EnvironmentOperationScope, allowPrimary: Bool) throws {
-        try value.validate(); scope = value
+        try value.validate()
+        try validateInstallation()
+        if let expected = value.buildFingerprint {
+            guard try currentBuildFingerprint() == expected else { throw EnvironmentError.incompatibleBuild }
+        }
+        scope = value
     }
     func activateScopedEnvironment(_ value: EnvironmentOperationScope, instance: DesktopInstance) throws {
         guard scope == value else { throw EnvironmentOpeningError.stalePlan }

@@ -98,7 +98,7 @@ struct MenuBarView: View {
                     editor = Editor(profile: nil); return .handled
                 }
                 .accessibilityHint(L10n.text("onboarding.addHint"))
-            if manager.installationBlockedReason != nil { CodexAvailabilityView(manager: manager) }
+            if manager.installationBlockedReason != nil || manager.installationCompatibilityNotice != nil { CodexAvailabilityView(manager: manager) }
             if manager.needsOpeningReview || manager.errorMessage != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
@@ -307,6 +307,10 @@ struct CodexAvailabilityView: View {
             if let installation = manager.installation {
                 Text(L10n.text("onboarding.codex.version", installation.version)).font(.caption).foregroundStyle(.secondary)
             }
+            if let notice = manager.installationCompatibilityNotice {
+                Text(notice).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Text(L10n.text("onboarding.codex.lastTested", LastTestedCodexBuild.version)).font(.caption).foregroundStyle(.secondary)
             if manager.codexAvailability != .verified {
                 HStack {
                     Button(L10n.text("settings.choose")) { manager.chooseCodex() }
@@ -469,7 +473,7 @@ struct ProfileEditor: View {
                     }
                 }.disabled(manager.isBusy)
             }
-            if profile == nil && manager.installationBlockedReason != nil { CodexAvailabilityView(manager: manager) }
+            if profile == nil && (manager.installationBlockedReason != nil || manager.installationCompatibilityNotice != nil) { CodexAvailabilityView(manager: manager) }
             VStack(alignment: .leading, spacing: 5) {
                 Text(L10n.text("account.profileName")).font(.system(size: 12, weight: .medium))
                 TextField(L10n.text("account.namePlaceholder"), text: $name).textFieldStyle(.roundedBorder)

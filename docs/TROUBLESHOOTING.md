@@ -1,20 +1,22 @@
 # Troubleshooting
 
-Applies to experimental **1.0.0 (4)** / `v1.0.0-rc.1`: Apple Silicon arm64 only, deployment target macOS 14.0 (Sonoma runtime acceptance not performed). Automated checks run on macOS 27.0.1 (26A434); final installer/first-launch acceptance is untested. Only Codex **26.1007.21159 (20052)** at `/Applications/ChatGPT.app` is supported; other builds/locations are unsupported. The app is ad hoc signed and not notarized. Technical ChatGPT identity verification is absent, full authentication isolation is not guaranteed, and Live Usage is disabled (identity/Usage deferred to 1.1). See [Release Notes](RELEASE_NOTES_v1.0.0-rc.1.md) for installation and Gatekeeper guidance.
+Applies to experimental **1.0.0 (5)** / `v1.0.0-rc.2`: Apple Silicon arm64 only, deployment target macOS 14.0 (Sonoma runtime acceptance not performed). Automated checks run on macOS 27.0.1 (26A434); final installer/first-launch acceptance is untested. Official Codex at `/Applications/ChatGPT.app` is checked dynamically by publisher signature and installation/process evidence. Ordinary version/build updates are accepted without a CodexSwoop update. Last individually tested: **26.1007.21159 (20052)**; newer versions are informationally untested. Other installation paths remain unsupported for opening. The app is ad hoc signed and not notarized. Technical ChatGPT identity verification is absent, full authentication isolation is not guaranteed, and Live Usage is disabled (identity/Usage deferred to 1.1). See [Release Notes](RELEASE_NOTES_v1.0.0-rc.2.md) for installation and Gatekeeper guidance.
 
 ## Codex installation not detected
 
-Open Settings and select **Refresh**. Confirm Codex is exactly version **26.1007.21159 (20052)** at **`/Applications/ChatGPT.app`**. The application picker does not enable other paths or builds. Detection can take a moment. If CodexSwoop still reports that no compatible installation is available, preserve your profiles and wait for a supported setup; do not try to bypass the check.
+Open Settings and select **Refresh**. Confirm official Codex is at **`/Applications/ChatGPT.app`**. Ordinary version/build updates are supported after dynamic publisher/installation validation; the application picker does not bypass signature, executable or canonical-path checks. Detection can take a moment. If CodexSwoop still reports that no compatible installation is available, preserve your profiles and wait for a supported setup; do not try to bypass the check.
 
-## Unsupported Codex build
+## Codex updated
 
-CodexSwoop supports only Codex builds that have passed its compatibility review. A Codex update can be detected without being supported for opening. Keep your existing Codex data intact and wait for an updated compatibility review.
+A new version/build is informational and does not require a new CodexSwoop release or compatibility allowlist. RC 2 verifies the current official publisher and installation dynamically. Select Refresh if the installation was changing while it was checked. You can add, rename and remove local profiles while opening is unavailable, subject to metadata integrity and pending-operation protections.
+
+If an older process remains running after the app on disk was replaced, CodexSwoop checks its live signature, generation and environment ownership independently. When macOS cannot provide coherent evidence, an opening/closing action stops rather than guessing. Review and save work in official Codex yourself; do not bypass ownership checks or clear recovery files. An update cannot silently settle a previous unfinished operation.
 
 ## Opening is blocked
 
 Read the message beside the profile and in Settings. Recheck that the profile is linked and the Codex installation is verified. A profile label or manual confirmation does not verify the signed-in ChatGPT account. Some account-switching and window-specific features remain unavailable in this pre-release build.
 
-If CodexSwoop reports unknown ownership, a changed environment, an unsupported build, or a previous operation needing review, stop and follow that message. Do not repeat the action to force it through.
+If CodexSwoop reports unknown ownership, a changed environment, unverifiable signature/installation evidence, or a previous operation needing review, stop and follow that message. Do not repeat the action to force it through.
 
 ## Previous operation needs review
 

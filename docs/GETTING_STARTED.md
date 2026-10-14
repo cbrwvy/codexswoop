@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide describes the current pre-release interface. Opening behavior depends on a compatible Codex build and may be blocked by safety checks.
+This guide describes the current pre-release interface. Local profile management is independent of the Codex version. Opening requires a verified official installation and coherent process/environment evidence.
 
 ## What is CodexSwoop?
 
@@ -8,11 +8,11 @@ CodexSwoop is a macOS menu bar app for keeping local profile names and Codex env
 
 ## Requirements
 
-- CodexSwoop **1.0.0 (4)**, experimental `v1.0.0-rc.1`, **Apple Silicon arm64 only**.
+- CodexSwoop **1.0.0 (5)**, experimental `v1.0.0-rc.2`, **Apple Silicon arm64 only**.
 - Deployment target **macOS 14.0**; Sonoma runtime acceptance is not performed. Automated checks run on **macOS 27.0.1 (26A434)**; final installer/first-launch acceptance remains untested.
-- Only official **Codex 26.1007.21159 (20052)** at **`/Applications/ChatGPT.app`**. Other versions or locations are not supported.
+- Official Codex at **`/Applications/ChatGPT.app`**, with valid OpenAI publisher signature, Bundle ID, Team ID, executable and canonical path. Ordinary updates require no new version allowlist. Last individually tested: **26.1007.21159 (20052)**; other versions show an informational untested notice. Other installation locations remain unsupported for opening.
 - No technical ChatGPT identity verification or guarantee of full authentication isolation. Live Usage is disabled; identity verification and Live Usage are deferred to 1.1.
-- The first DMG contains an **ad hoc-signed** app and is **not notarized**. Read the [installation and Gatekeeper instructions](RELEASE_NOTES_v1.0.0-rc.1.md). Download the experimental candidate from [GitHub Pre-release v1.0.0-rc.1](https://github.com/cbrwvy/codexswoop/releases/tag/v1.0.0-rc.1).
+- The first DMG contains an **ad hoc-signed** app and is **not notarized**. Read the [installation and Gatekeeper instructions](RELEASE_NOTES_v1.0.0-rc.2.md). RC 2 publication is pending approval.
 
 For development builds, use [BUILDING.md](BUILDING.md).
 
@@ -20,7 +20,7 @@ For development builds, use [BUILDING.md](BUILDING.md).
 
 1. Open CodexSwoop. Its controls are in the macOS menu bar.
 2. Select **Add Account** and choose a setup method.
-3. If CodexSwoop reports that Codex is missing or unverified, open Settings and select **Refresh** or **Check Again**. Confirm the exact required build at `/Applications/ChatGPT.app`; selecting a different location does not make it supported. Detection does not mean that every Codex build is supported.
+3. If CodexSwoop reports that Codex is missing or unverified, open Settings and select **Refresh** or **Check Again**. Confirm official Codex is at `/Applications/ChatGPT.app`; a different version alone is not a blocker. A different path, invalid publisher signature or incoherent installation can still block opening. You can prepare local profiles while Codex is absent or unverified.
 4. CodexSwoop does not ask for Accessibility permission automatically. Launch at Login is optional.
 
 ## Use Existing Codex
@@ -46,7 +46,7 @@ Use the profile's **More** menu to recheck its environment link, add a manual ac
 
 ## Open Separately
 
-Open the profile menu and choose **Open Separately**. CodexSwoop asks you to confirm, then attempts to activate the linked running environment or launch Codex with that environment. This does not confirm the ChatGPT account identity. The action can be unavailable when the Codex build or environment cannot be verified.
+Open the profile menu and choose **Open Separately**. CodexSwoop asks you to confirm, then attempts to activate the linked running environment or launch Codex with that environment. This does not confirm the ChatGPT account identity. The action can be unavailable when the current Codex signature, installation or environment evidence cannot be verified; a version mismatch alone does not block it.
 
 ## Close Others & Open
 

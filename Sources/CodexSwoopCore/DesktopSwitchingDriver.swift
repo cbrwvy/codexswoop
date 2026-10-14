@@ -21,8 +21,9 @@ public struct DesktopInstance: Codable, Equatable, Sendable {
     public let main: DesktopGeneration
     public let related: [DesktopGeneration]
     public let nativeLaunchDate: Date
-    public init(main: DesktopGeneration, related: [DesktopGeneration], nativeLaunchDate: Date) {
-        self.main = main; self.related = related; self.nativeLaunchDate = nativeLaunchDate
+    public let signingIdentity: CodexSigningIdentity?
+    public init(main: DesktopGeneration, related: [DesktopGeneration], nativeLaunchDate: Date, signingIdentity: CodexSigningIdentity? = nil) {
+        self.main = main; self.related = related; self.nativeLaunchDate = nativeLaunchDate; self.signingIdentity = signingIdentity
     }
 }
 public struct DesktopObservation: Sendable {
@@ -37,6 +38,7 @@ public struct DesktopObservation: Sendable {
             throw EnvironmentError.ambiguousInstance
         }
         if let instance = matching.first {
+            try instance.signingIdentity?.validate()
             guard instance.main.pid > 0, instance.main.uid == getuid(), !instance.main.started.isEmpty,
                   instance.nativeLaunchDate <= now, instance.related.contains(instance.main),
                   Set(instance.related.map(\.pid)).count == instance.related.count,
@@ -675,7 +677,7 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
         let plan = AccountOpeningPlan(id: record.id, mode: record.mode, target: profile, association: target,
             targetInstance: record.targetInstance, others: others, profiles: profiles, associations: associations)
         // Expired forever: this reconstructed value is evidence, never valid dispatch authority.
-        return EnvironmentOperationScope(plan: plan, managed: managed, retainedResearch: retained, expiresAt: .distantPast)
+        return EnvironmentOperationScope(plan: plan, managed: managed, retainedResearch: retained, expiresAt: .distantPast, buildFingerprint: record.buildFingerprint)
     }
     private func validateRecoveryCatalogs(_ scope: EnvironmentOperationScope) async throws {
         guard try await store.inspect() == scope.profiles,
@@ -697,7 +699,8 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
     public func authorizeEnvironmentAccount(_ plan: AccountOpeningPlan, allowPrimary: Bool) async throws {
         guard scopedOpening, operationScope == nil, let managed = scopedManaged else { throw EnvironmentOpeningError.stalePlan }
         try await recheckOpening(plan, remaining: plan.others)
-        let scope = EnvironmentOperationScope(plan: plan, managed: managed, retainedResearch: scopedRetainedResearch)
+        let build = try await system.openingBuildFingerprint()
+        let scope = EnvironmentOperationScope(plan: plan, managed: managed, retainedResearch: scopedRetainedResearch, buildFingerprint: build)
         try scope.validate()
         try await beginOpeningJournal(scope)
         try await system.authorizeEnvironmentOperation(scope, allowPrimary: allowPrimary)
@@ -739,6 +742,7 @@ extension DesktopSwitchingDriver {
     }
     private func beginOpeningJournal(_ scope: EnvironmentOperationScope) async throws {
         let build = try await system.openingBuildFingerprint()
+        guard scope.buildFingerprint == nil || scope.buildFingerprint == build else { throw EnvironmentError.incompatibleBuild }
         try openingJournal.begin(PendingOpeningOperation(scope: scope, bootSession: bootSessionProvider(), buildFingerprint: build))
         journalID = scope.id; journalBuild = build
     }

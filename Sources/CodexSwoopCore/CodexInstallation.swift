@@ -5,9 +5,10 @@ public struct CodexInstallation: Equatable, Sendable {
     public let version: String
     public let bundleIdentifier: String
     public let build: String
+    public let executableName: String
 
-    public init(url: URL, version: String, bundleIdentifier: String = CodexBundleInspector.bundleIdentifier, build: String = "Unknown") {
-        self.url = url; self.version = version; self.bundleIdentifier = bundleIdentifier; self.build = build
+    public init(url: URL, version: String, bundleIdentifier: String = CodexBundleInspector.bundleIdentifier, build: String = "Unknown", executableName: String = "ChatGPT") {
+        self.url = url; self.version = version; self.bundleIdentifier = bundleIdentifier; self.build = build; self.executableName = executableName
     }
 }
 
@@ -34,7 +35,9 @@ public enum CodexBundleInspector {
         // A manually selected bundle must not inject control characters or arbitrary text into diagnostics.
         let version = rawVersion.count <= 80 && !rawVersion.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
             ? rawVersion : "Unknown"
-        return CodexInstallation(url: url, version: version, bundleIdentifier: bundleIdentifier, build: info["CFBundleVersion"] as? String ?? "Unknown")
+        let rawBuild = info["CFBundleVersion"] as? String ?? "Unknown"
+        let build = rawBuild.count <= 80 && !rawBuild.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) ? rawBuild : "Unknown"
+        return CodexInstallation(url: url, version: version, bundleIdentifier: bundleIdentifier, build: build, executableName: executable)
     }
 
     public static func detect(candidates: [URL]) -> CodexInstallation? {
@@ -48,23 +51,11 @@ public enum CodexBundleInspector {
     }
 }
 
-/// Presentation preflight only. Native effects still require the complete fresh signature/archive proof.
-public enum ReviewedCodexBuild {
-    public static let path = "/Applications/ChatGPT.app"
-    public static let version = "26.1007.21159"
-    public static let build = "20052"
-    public static let archiveSHA256 = "97b8e5fddfced82d782c5f3f3e7c5aba7940b8cb1068dd214ffa3d71687d9fdb"
-    public static let signingRequirement = "identifier \"com.openai.codex\" and anchor apple generic and certificate leaf[subject.OU] = \"2DC432GLL2\""
-    public static func matches(_ installation: CodexInstallation) -> Bool {
-        installation.url.path == path && installation.version == version && installation.build == build
-            && installation.bundleIdentifier == CodexBundleInspector.bundleIdentifier
-    }
-}
-
 public enum CodexAvailability: String, CaseIterable, Sendable {
     case missing, checking, verified, unverified
     public var messageKey: String { "onboarding.codex." + rawValue }
-    public var permitsSetup: Bool { self == .verified }
+    public var permitsSetup: Bool { true }
+    public var permitsOpening: Bool { self == .verified }
 }
 
 /// A permission observation is never an account/window ownership proof or a request to macOS.
