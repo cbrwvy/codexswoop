@@ -12,20 +12,24 @@ struct MenuBarView: View {
     private enum FocusTarget: Hashable { case add, settings, profile(UUID), manage(UUID) }
     @FocusState private var focused: FocusTarget?
     @ViewState<[FocusTarget: Int]> private var menuActivations: [FocusTarget: Int] = [:]
+    @ViewState<CGFloat> private var measuredHeight: CGFloat = 560
     private struct Editor: Identifiable { let id = UUID(); let profile: AccountProfile? }
     private let maximumHeight: CGFloat?
-    init(manager: ProfileManager, maximumHeight: CGFloat? = nil) {
-        self.manager = manager; self.maximumHeight = maximumHeight
+    private let contentHeightChanged: ((CGFloat) -> Void)?
+    init(manager: ProfileManager, maximumHeight: CGFloat? = nil, contentHeightChanged: ((CGFloat) -> Void)? = nil) {
+        self.manager = manager; self.maximumHeight = maximumHeight; self.contentHeightChanged = contentHeightChanged
     }
     private var heightLimit: CGFloat { maximumHeight ?? manager.menuMaximumHeight }
 
     var body: some View {
-        ViewThatFits(in: .vertical) {
+        ScrollView {
             menuContent.padding(16).frame(width: 320).fixedSize(horizontal: false, vertical: true)
-            ScrollView {
-                menuContent.padding(16).frame(width: 320).fixedSize(horizontal: false, vertical: true)
-            }
-        }.frame(width: 320).frame(maxHeight: heightLimit).fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { proxy in
+                    Color.clear.onAppear { updateMeasuredHeight(proxy.size.height) }
+                        .onChange(of: proxy.size.height) { _, height in updateMeasuredHeight(height) }
+                })
+        }.frame(width: 320, height: min(measuredHeight, heightLimit))
+        .onChange(of: heightLimit) { _, _ in contentHeightChanged?(min(measuredHeight, heightLimit)) }
         .onAppear { restoreFocus() }
         .onChange(of: manager.storageReady) { _, _ in restoreFocus() }
         .onChange(of: manager.isBusy) { _, busy in if !busy { restoreFocus() } }
@@ -58,6 +62,12 @@ struct MenuBarView: View {
         } message: { Text(L10n.text("disconnect.detail")) }
     }
 
+    private func updateMeasuredHeight(_ height: CGFloat) {
+        guard height > 1, abs(height - measuredHeight) > 0.5 else { return }
+        measuredHeight = height
+        contentHeightChanged?(min(height, heightLimit))
+    }
+
     private var menuContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -88,7 +98,6 @@ struct MenuBarView: View {
                     }
                 }.padding(.vertical, 10)
             } else {
-                ScrollView {
                     VStack(spacing: 2) {
                         ForEach(manager.profiles) { profile in
                             VStack(alignment: .leading, spacing: 5) {
@@ -128,10 +137,6 @@ struct MenuBarView: View {
                             }.padding(.vertical, 8).padding(.horizontal, 2)
                         }
                     }
-                }.frame(height: min(manager.profiles.reduce(CGFloat.zero) { height, profile in
-                    height + (manager.usageState(for: profile).snapshot != nil ? 190 :
-                        (manager.connectionErrors.contains(profile.id) || manager.association(for: profile) == nil ? 66 : 46))
-                }, min(280, heightLimit * 0.45)))
             }
             Button { editor = Editor(profile: nil) } label: { Label(L10n.text("menu.add"), systemImage: "plus") }
                 .buttonStyle(.bordered).keyboardShortcut("n").disabled(!manager.storageReady || manager.isBusy)
@@ -141,7 +146,7 @@ struct MenuBarView: View {
                     editor = Editor(profile: nil); return .handled
                 }
                 .accessibilityHint(L10n.text("onboarding.addHint"))
-            if manager.installationBlockedReason != nil || manager.installationCompatibilityNotice != nil { CodexAvailabilityView(manager: manager) }
+            if manager.installationBlockedReason != nil { CodexAvailabilityView(manager: manager) }
             if manager.needsOpeningReview || manager.errorMessage != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {

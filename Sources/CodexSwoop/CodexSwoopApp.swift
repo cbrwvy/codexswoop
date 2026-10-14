@@ -69,7 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let popover = NSPopover()
     private let manager: ProfileManager
     private lazy var popoverAnchor = StatusPopoverAnchor(popover: popover,
-        maximumHeightChanged: { [weak self] in self?.manager.menuMaximumHeight = $0 },
+        maximumHeightChanged: { [weak self] height in
+            if let self, abs(self.manager.menuMaximumHeight - height) > 0.5 { self.manager.menuMaximumHeight = height }
+        },
         currentButton: { [weak self] in self?.statusItem?.button })
     private lazy var settingsController = SettingsWindowController(manager: manager)
 
@@ -110,7 +112,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
         popover.behavior = .transient
         popover.animates = false
-        popover.contentViewController = NSHostingController(rootView: MenuBarView(manager: manager).preferredColorScheme(testColorScheme))
+        let menuController = NSHostingController(rootView: MenuBarView(manager: manager, contentHeightChanged: { [weak self] in
+            self?.popoverAnchor.contentHeightChanged($0)
+        }).preferredColorScheme(testColorScheme))
+        // NSPopover consumes preferredContentSize, not only the hosting view's intrinsic size.
+        menuController.sizingOptions = [.standardBounds, .preferredContentSize]
+        popover.contentViewController = menuController
         Task {
             await manager.reload()
             #if DEBUG
@@ -180,6 +187,8 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
     private let maximumHeightChanged: (CGFloat) -> Void
     private weak var observedButton: NSView?
     private weak var observedWindow: NSWindow?
+    private weak var observedPopoverWindow: NSWindow?
+    private var contentObserver: NSObjectProtocol?
     private var observers: [NSObjectProtocol] = []
     private var pendingRefresh: Task<Void, Never>?
     private var previousFrameNotifications = false
@@ -199,6 +208,8 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         observe(button, window: window)
         updateMaximumHeight(button, window: window)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        observeContentWindow()
+        constrainFrame(button, window: window)
         return popover.isShown
     }
 
@@ -248,14 +259,52 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         updateMaximumHeight(button, window: window)
         // On an already visible popover this updates its anchor; it does not reopen it.
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        observeContentWindow()
+        constrainFrame(button, window: window)
     }
 
     private func updateMaximumHeight(_ button: NSView, window: NSWindow) {
         guard let screen = window.screen else { return }
         let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
-        maximumHeightChanged(MenuPopoverGeometry.maximumContentHeight(anchor: anchor, visibleFrame: screen.visibleFrame))
+        let chrome = popover.contentViewController?.view.window.map { max(0, $0.frame.height - popover.contentSize.height) } ?? 40
+        maximumHeightChanged(MenuPopoverGeometry.maximumContentHeight(anchor: anchor, visibleFrame: screen.visibleFrame, chromeHeight: chrome))
         // Let SwiftUI publish its new fitting size before reasserting the native anchor.
     }
+
+    private func observeContentWindow() {
+        guard let window = popover.contentViewController?.view.window, observedPopoverWindow !== window else { return }
+        if let contentObserver { NotificationCenter.default.removeObserver(contentObserver) }
+        observedPopoverWindow = window
+        contentObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification,
+            object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.scheduleRefresh() }
+            }
+    }
+    private func updateContentSize(_ size: NSSize) {
+        guard popover.isShown, size.width > 1, size.height > 1 else { return }
+        if abs(popover.contentSize.height - size.height) > 0.5 || abs(popover.contentSize.width - size.width) > 0.5 {
+            popover.contentSize = size
+            scheduleRefresh()
+        }
+    }
+    func contentHeightChanged(_ height: CGFloat) {
+        // Publish after SwiftUI's layout transaction. NSPopover does not consistently adopt
+        // changes to NSHostingController.preferredContentSize on its own.
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            self.updateContentSize(NSSize(width: self.popover.contentSize.width, height: height))
+        }
+    }
+    private func constrainFrame(_ button: NSView, window: NSWindow) {
+        guard let screen = window.screen, let contentWindow = popover.contentViewController?.view.window else { return }
+        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        let frame = MenuPopoverGeometry.constrainedFrame(contentWindow.frame, anchor: anchor, visibleFrame: screen.visibleFrame)
+        if abs(frame.minX - contentWindow.frame.minX) > 0.5 || abs(frame.minY - contentWindow.frame.minY) > 0.5 {
+            contentWindow.setFrameOrigin(frame.origin)
+        }
+    }
+    func popoverDidShow(_ notification: Notification) { observeContentWindow(); scheduleRefresh() }
 
     func popoverDidClose(_ notification: Notification) { stopObserving() }
 
@@ -263,6 +312,8 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         pendingRefresh?.cancel(); pendingRefresh = nil
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers = []
+        if let contentObserver { NotificationCenter.default.removeObserver(contentObserver) }
+        contentObserver = nil; observedPopoverWindow = nil
         observedButton?.postsFrameChangedNotifications = previousFrameNotifications
         observedButton?.postsBoundsChangedNotifications = previousBoundsNotifications
         observedButton = nil; observedWindow = nil
@@ -354,8 +405,14 @@ extension NativeSwitchingConfirmation {
 
 /// Reserve space for AppKit's arrow/chrome. Native positioning remains tied to the status button.
 enum MenuPopoverGeometry {
-    static func maximumContentHeight(anchor: NSRect, visibleFrame: NSRect) -> CGFloat {
+    static func maximumContentHeight(anchor: NSRect, visibleFrame: NSRect, chromeHeight: CGFloat = 40) -> CGFloat {
         let below = min(anchor.minY, visibleFrame.maxY) - visibleFrame.minY
-        return max(1, min(560, visibleFrame.height - 40, below - 40))
+        return max(1, min(560, below - max(0, chromeHeight)))
+    }
+    static func constrainedFrame(_ frame: NSRect, anchor: NSRect, visibleFrame: NSRect) -> NSRect {
+        var result = frame
+        result.origin.x = max(visibleFrame.minX, min(frame.minX, visibleFrame.maxX - frame.width))
+        result.origin.y = max(visibleFrame.minY, min(frame.minY, min(anchor.minY, visibleFrame.maxY) - frame.height))
+        return result
     }
 }

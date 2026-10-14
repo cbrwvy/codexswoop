@@ -1,4 +1,6 @@
 import AppKit
+import SwiftUI
+import CodexSwoopCore
 
 /// Real AppKit windows and this process's own disposable status items only.
 /// Does not control another application's menu icons or read account storage.
@@ -78,6 +80,58 @@ import AppKit
             print("PASS real Menu Bar neighbor insertion; icon/popover position unchanged by system layout")
         }
         popover.performClose(nil)
+        let configuration = ProfileManager.storageConfiguration()
+        precondition(configuration.isTest)
+        let suite = "codexswoop-anchor-fixture-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let manager = ProfileManager(defaults: defaults)
+        try! MainThreadPreparation.wait {
+            let store = ProfileStore(root: configuration.root)
+            _ = try await store.load()
+            if try await store.inspect().profiles.count < 2 {
+                _ = try await store.create(name: "Fixture One")
+                _ = try await store.create(name: "Fixture Two")
+            }
+            await manager.reload()
+        }
+        manager.previewOpeningReviewForChecks(.environment(.backendNotReady))
+        let menu = NSHostingController(rootView: MenuBarView(manager: manager, maximumHeight: 240, contentHeightChanged: { live.contentHeightChanged($0) }))
+        menu.sizingOptions = [.standardBounds, .preferredContentSize]
+        popover.contentViewController = menu
+        precondition(live.show()); settle(); settle()
+        precondition(popover.contentSize.height <= 241)
+        let boundedWindow = menu.view.window!
+        precondition(boundedWindow.frame.maxY <= statusWindow.screen!.visibleFrame.maxY + 1,
+            "Real popover must stay below the menu bar")
+        precondition(boundedWindow.frame.minY >= statusWindow.screen!.visibleFrame.minY - 1)
+        func scrollViews(_ view: NSView) -> [NSScrollView] {
+            (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap(scrollViews)
+        }
+        let scroll = scrollViews(menu.view).first { ($0.documentView?.bounds.height ?? 0) > $0.contentView.bounds.height + 1 }!
+        let document = scroll.documentView!
+        document.scroll(NSPoint(x: 0, y: document.bounds.maxY - scroll.contentView.bounds.height))
+        scroll.reflectScrolledClipView(scroll.contentView); settle()
+        precondition(scroll.contentView.bounds.origin.y > 0, "Diagnostics and footer must remain reachable")
+        manager.errorMessage = String(repeating: "Synthetic diagnostic detail. ", count: 25); settle()
+        precondition(popover.contentSize.height <= 241 && menu.view.window === boundedWindow)
+        manager.errorMessage = nil; manager.previewOpeningReviewForChecks(nil); settle()
+        precondition(popover.contentSize.height <= 241)
+        popover.performClose(nil)
+        let growingMenu = NSHostingController(rootView: MenuBarView(manager: manager, maximumHeight: 560, contentHeightChanged: { live.contentHeightChanged($0) }))
+        growingMenu.sizingOptions = [.standardBounds, .preferredContentSize]
+        popover.contentViewController = growingMenu
+        precondition(live.show()); settle(); settle()
+        let compactHeight = popover.contentSize.height
+        precondition(compactHeight < 500, "A short menu must shrink to its measured content")
+        manager.errorMessage = String(repeating: "Synthetic diagnostic detail. ", count: 25); settle(); settle()
+        let diagnostics = "Sizing QA compact=\(compactHeight), grown=\(popover.contentSize.height), preferred=\(growingMenu.preferredContentSize), fitting=\(growingMenu.view.fittingSize), documents=\(scrollViews(growingMenu.view).map { $0.documentView?.bounds.height ?? 0 })\n"
+        FileHandle.standardError.write(Data(diagnostics.utf8))
+        precondition(popover.contentSize.height > compactHeight, "Diagnostic growth must update the native content height")
+        manager.errorMessage = nil; settle(); settle()
+        precondition(abs(popover.contentSize.height - compactHeight) < 1, "Diagnostic removal must shrink the native content height")
+        popover.performClose(nil)
+        print("PASS real bounded SwiftUI popover, diagnostic growth/shrink, single-scroll footer reachability and native screen containment")
         print("PASS real status-item opening/closing; only disposable icons in this QA process were changed")
     }
 }

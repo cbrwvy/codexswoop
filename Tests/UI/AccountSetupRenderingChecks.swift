@@ -21,6 +21,13 @@ import ServiceManagement
             precondition(height > 0 && height <= 560 && height + 40 <= frame.height)
             let lower = anchor.offsetBy(dx: 0, dy: -100)
             precondition(MenuPopoverGeometry.maximumContentHeight(anchor: lower, visibleFrame: frame) <= height)
+            for chrome in [CGFloat(16), 32, 60] {
+                let limit = MenuPopoverGeometry.maximumContentHeight(anchor: anchor, visibleFrame: frame, chromeHeight: chrome)
+                let oversizedOrigin = NSRect(x: frame.maxX + 100, y: frame.maxY + 200, width: 320, height: limit + chrome)
+                let bounded = MenuPopoverGeometry.constrainedFrame(oversizedOrigin, anchor: anchor, visibleFrame: frame)
+                precondition(frame.contains(bounded) && bounded.maxY <= anchor.minY,
+                    "Popover must fit below the menu bar on scaled/negative-coordinate displays")
+            }
         }
         NativeAccountMenuChecks.run()
         if withAccessibility {
