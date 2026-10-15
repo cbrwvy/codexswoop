@@ -339,6 +339,25 @@ final class OpeningSafetyTests: XCTestCase {
         catch { XCTAssertEqual(error as? EnvironmentError, .incompatibleBuild) }
         XCTAssertEqual(try journal.pending()?.buildFingerprint, intent.buildFingerprint)
     }
+    func testSignedSameGUIRecoveryAllowsFreshOwnedHelperTree() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let old = await f.system.instances[f.associations[1].environmentID]!
+        let main = DesktopGeneration(pid: old.main.pid, uid: getuid(), started: old.main.started, startTimeMicroseconds: 10_000_001)
+        let signature = CodexSigningIdentity(identifier: CodexBundleInspector.bundleIdentifier, teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let receiver = DesktopInstance(main: main, related: [main], nativeLaunchDate: old.nativeLaunchDate, signingIdentity: signature)
+        await f.system.setSyntheticInstance(f.associations[1].environmentID, receiver)
+        let intent = try await pendingRecord(f), journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        try journal.begin(intent); try journal.append(.activation(receiver), operation: intent.id); journal.abandon()
+        let child = DesktopGeneration(pid: main.pid + 10, uid: getuid(), started: "fresh helper", startTimeMicroseconds: 10_000_002)
+        await f.system.setSyntheticInstance(f.associations[1].environmentID,
+            DesktopInstance(main: main, related: [main, child], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature))
+        let recovered = restartedCoordinator(f); _ = try await recovered.refreshOpeningRecovery()
+        try await recovered.reconcileOpeningRecovery()
+        XCTAssertNil(try journal.pending())
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty, "Read-only settlement grants no native effect")
+    }
     func testSameSecondPIDReuseAndChildGenerationChangeRemainUnresolved() async throws {
         for childOnly in [false, true] {
             let f = try await ReleaseFixture.make(root: qaRoot())

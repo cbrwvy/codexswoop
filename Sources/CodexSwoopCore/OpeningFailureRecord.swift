@@ -7,8 +7,8 @@ public struct OpeningFailureRecord: Codable, Equatable, Sendable {
         case processChanged, activation, launch, incompatibleBuild, cancelled, other
     }
     public enum Stage: String, Codable, Sendable {
-        case launch, activation, activationScopeTarget, activationScopeInventory, activationDispatch, activationPostflight
-        case driverPostflightTarget, driverPostflightInventory, driverForeground, journalCompletion
+        case launch, quitDispatch, exitWait, activation, activationScopeTarget, activationScopeInventory, activationDispatch, activationPostflight
+        case driverPostflightTarget, driverPostflightInventory, driverInventoryComparison, driverForeground, journalCompletion
     }
     public let stage: Stage?
     public let reason: Reason

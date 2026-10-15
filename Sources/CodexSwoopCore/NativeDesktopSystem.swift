@@ -65,6 +65,20 @@ public struct DesktopProcessMetadata: Equatable, Sendable {
             startTimeMicroseconds: info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec)
     }
 
+    /// Identity only, never an absence or zombie classification. An exiting process
+    /// can lose its executable path in ps while retaining its kernel generation.
+    static func kernelGenerationMatches(_ expected: DesktopGeneration) -> Bool? {
+        guard expected.pid > 0, let start = expected.startTimeMicroseconds else { return nil }
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(expected.pid, PROC_PIDTBSDINFO, 0, &info, size) == size,
+              info.pbi_pid == UInt32(expected.pid), info.pbi_start_tvsec > 0,
+              info.pbi_start_tvsec < UInt64.max / 1_000_000,
+              info.pbi_start_tvusec < 1_000_000 else { return nil }
+        return info.pbi_uid == expected.uid
+            && info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec == start
+    }
+
 }
 
 /// Publisher-verified adapter. Legacy effects remain closed; environment effects require one exact confirmed scope.
@@ -139,8 +153,8 @@ public actor NativeDesktopSystem: DesktopSystem {
                 openingStage = .activationPostflight
                 let newlyLaunched = scope != nil && scopeLaunchedInstance != nil
                 let fresh = try await observeOpeningTarget(association, launchedReceiver: newlyLaunched ? instance : nil,
-                    expectedReceiver: scope?.mode == .openSeparately ? instance : nil)
-                guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: newlyLaunched, allowChildChanges: scope?.mode == .openSeparately) else { throw EnvironmentError.processChanged }
+                    expectedReceiver: scope != nil ? instance : nil)
+                guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: newlyLaunched, allowChildChanges: scope != nil) else { throw EnvironmentError.processChanged }
                 return
             }
             if attempt < 20 { try await Task.sleep(for: .milliseconds(50)) }
@@ -420,7 +434,8 @@ public actor NativeDesktopSystem: DesktopSystem {
     private func dispatchNormalQuit(_ instance: DesktopInstance, association: EnvironmentAssociation, scope: EnvironmentOperationScope? = nil) async throws {
         try validator.revalidate(association)
         try await validateInstallation()
-        guard try await observe(association).unique() == instance else { throw EnvironmentError.processChanged }
+        guard DesktopOpeningTarget.matches(try await observe(association).unique(), expected: instance,
+            newlyLaunched: false, allowChildChanges: scope != nil) else { throw EnvironmentError.processChanged }
         _ = try Self.validateLiveSignature(instance.main.pid, expected: instance.signingIdentity)
         if let scope { try await checkDispatchCatalogs(scope) }
         try validator.revalidate(association)
@@ -433,7 +448,10 @@ public actor NativeDesktopSystem: DesktopSystem {
                   target.executableURL?.path == "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
                   let fresh = NSRunningApplication(processIdentifier: instance.main.pid), fresh.isEqual(target) else { return false }
             if let scope { ledger.mark(scope.id, effect: .normalQuit(instance)) }
-            return target.terminate()
+            // Delivery acknowledgement is not an exit proof. After this one request,
+            // the bounded wait below decides whether this exact receiver exited.
+            _ = target.terminate()
+            return true
         }
         guard sent else { throw EnvironmentError.processChanged }
     }
@@ -447,12 +465,29 @@ public actor NativeDesktopSystem: DesktopSystem {
             try Task.checkCancellation()
             let rows: [Int32: Row]
             do { rows = try await inventory(deadline: deadline) }
-            catch { if ContinuousClock.now >= deadline { throw SwitchingError.exitTimedOut }; throw error }
-            for generation in instance.related {
-                if let current = rows[generation.pid], current.generation != generation { throw EnvironmentError.processChanged }
+            catch EnvironmentError.processChanged {
+                // A process in the ps snapshot can disappear before its kernel metadata
+                // is read during normal exit. Wait for a complete fresh snapshot;
+                // the generation checks below still reject any captured PID reuse.
+                if ContinuousClock.now >= deadline { throw SwitchingError.exitTimedOut }
+                try await Task.sleep(for: .milliseconds(100))
+                continue
             }
-            if instance.related.allSatisfy({ rows[$0.pid] == nil }) {
-                guard try await observeUntil(association, deadline: deadline).unique() == nil else { throw EnvironmentError.ambiguousInstance }
+            catch { if ContinuousClock.now >= deadline { throw SwitchingError.exitTimedOut }; throw error }
+            var capturedProcessPresent = false
+            for generation in instance.related {
+                let matches = DesktopProcessMetadata.kernelGenerationMatches(generation)
+                if matches == false { throw EnvironmentError.processChanged }
+                if rows[generation.pid] != nil || matches == true { capturedProcessPresent = true }
+            }
+            if !capturedProcessPresent {
+                do {
+                    guard try await observeUntil(association, deadline: deadline).unique() == nil else { throw EnvironmentError.ambiguousInstance }
+                } catch EnvironmentError.processChanged {
+                    if ContinuousClock.now >= deadline { throw SwitchingError.exitTimedOut }
+                    try await Task.sleep(for: .milliseconds(100))
+                    continue
+                }
                 return
             }
             try await Task.sleep(for: .milliseconds(100))
@@ -511,7 +546,9 @@ public actor NativeDesktopSystem: DesktopSystem {
         return try await environmentInstanceInventory(associations: associations)
     }
     public func environmentInstanceInventory(associations: [EnvironmentAssociation]) async throws -> DesktopInstanceInventory {
-        try await collectInstanceInventory(associations: associations)
+        try await DesktopReadiness.inventory { timeout in
+            try await self.collectInstanceInventory(associations: associations, timeout: timeout)
+        }
     }
 
     /// Read-only installation diagnosis only. Never feeds lifecycle plans or recovery.
@@ -562,8 +599,8 @@ public actor NativeDesktopSystem: DesktopSystem {
     }
 
     private func collectInstanceInventory(associations: [EnvironmentAssociation],
-        preflight: InstallationPreflightSession? = nil) async throws -> DesktopInstanceInventory {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        preflight: InstallationPreflightSession? = nil, timeout: Duration = .seconds(5)) async throws -> DesktopInstanceInventory {
+        let deadline = ContinuousClock.now.advanced(by: min(timeout, .seconds(5)))
         let nativeBefore = await Self.nativeMainPIDs()
         let before = try await inventory(deadline: deadline, preflight: preflight)
         var entries: [DesktopInventoryEntry] = []
@@ -626,9 +663,9 @@ public actor NativeDesktopSystem: DesktopSystem {
     private func checkScopeInventory(_ scope: EnvironmentOperationScope, closed: Set<UUID>, launched: DesktopInstance?) async throws {
         openingStage = .activationScopeTarget
         let target = try await observeOpeningTarget(scope.target, launchedReceiver: launched,
-            expectedReceiver: scope.mode == .openSeparately ? scope.targetInstance : nil)
+            expectedReceiver: scope.targetInstance)
         guard DesktopOpeningTarget.matches(target, expected: launched ?? scope.targetInstance,
-            newlyLaunched: launched != nil, allowChildChanges: scope.mode == .openSeparately) else { throw AccountOpeningError.processChanged }
+            newlyLaunched: launched != nil, allowChildChanges: true) else { throw AccountOpeningError.processChanged }
         if scope.mode == .closeOthersAndOpen {
             openingStage = .activationScopeInventory
             let inventory = try await environmentInstanceInventory(associations: scope.associations.associations + scope.retainedResearch)
@@ -636,7 +673,7 @@ public actor NativeDesktopSystem: DesktopSystem {
             let expected = scope.others.filter { !closed.contains($0.association.environmentID) }
                 + (target.map { [DesktopInventoryEntry(association: scope.target, instance: $0)] } ?? [])
             let launchedTarget = launched != nil ? target.map { DesktopInventoryEntry(association: scope.target, instance: $0) } : nil
-            guard DesktopOpeningTarget.confirms(inventory, expected: expected, launchedTarget: launchedTarget) else { throw AccountOpeningError.processChanged }
+            guard DesktopOpeningTarget.confirms(inventory, expected: expected, launchedTarget: launchedTarget, allowChildChanges: true) else { throw AccountOpeningError.processChanged }
         }
     }
     private func recheckScope(_ scope: EnvironmentOperationScope) async throws {
@@ -713,9 +750,8 @@ public actor NativeDesktopSystem: DesktopSystem {
         try EnvironmentRecoveryProof.validate(scope: scope, effects: effects, inventory: first,
             livePIDs: Set(live.keys), launcherRunning: launcherRunning)
         let second = try await environmentInstanceInventory(associations: inventoryAssociations)
-        guard first.entries == second.entries, first.unknownCount == second.unknownCount else {
-            throw EnvironmentError.processChanged
-        }
+        guard DesktopOpeningTarget.confirms(second, expected: first.entries, launchedTarget: nil, allowChildChanges: true),
+              first.unknownCount == second.unknownCount else { throw EnvironmentError.processChanged }
         try EnvironmentRecoveryProof.validate(scope: scope, effects: effects, inventory: second,
             livePIDs: Set(try await inventory().keys), launcherRunning: launcherRunning)
         try Task.checkCancellation()
@@ -756,7 +792,8 @@ public actor NativeDesktopSystem: DesktopSystem {
         try EnvironmentRecoveryProof.validate(scope: scope, effects: effects, inventory: first,
             livePIDs: Set(try await inventory().keys), launcherRunning: false)
         let second = try await environmentInstanceInventory(associations: inventoryAssociations)
-        guard first.entries == second.entries, first.unknownCount == second.unknownCount else { throw EnvironmentError.processChanged }
+        guard DesktopOpeningTarget.confirms(second, expected: first.entries, launchedTarget: nil, allowChildChanges: true),
+              first.unknownCount == second.unknownCount else { throw EnvironmentError.processChanged }
         try EnvironmentRecoveryProof.validateLaunchReceiver(launchReceiver, target: scope.target, inventory: second)
         try EnvironmentRecoveryProof.validate(scope: scope, effects: effects, inventory: second,
             livePIDs: Set(try await inventory().keys), launcherRunning: false)

@@ -135,6 +135,52 @@ private final class Stages: @unchecked Sendable {
         let repeated = try await tool.run(consent: consent)
         try require(repeated.alreadyApplied && (try pair(root)) == active, "supersession cannot erase later normal results")
     }
+    static func nonclosingHistoryChecks() async throws {
+        let (f, old) = try await make()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let root = f.validator.managedRoot, original = try pair(root)
+        // Profile setup has legitimately changed metadata since the old request.
+        var catalog = try await f.store.inspect(); catalog.revision += 1
+        try AtomicMetadataWriter().write(JSONEncoder().encode(catalog), to: root.appendingPathComponent("profiles.json"))
+        var tool = engine(root, record: old); tool.nonclosingHistory = true
+        tool.sample = { references, _ in
+            OpeningEpochObservation(boot: old.bootSession, build: old.buildFingerprint,
+                inventory: DesktopInstanceInventory(entries: references.enumerated().map { i, a in
+                    DesktopInventoryEntry(association: a, instance: precise(210_000 + Int32(i)))
+                }, unknownCount: 0), originalPIDsAbsent: false, swoopRunning: false)
+        }
+        let review = try await tool.run(consent: nil)
+        try require(review.consent.hasPrefix("supersede-nonclosing:"), "retained live receivers require distinct explicit consent")
+        try require(try pair(root) == original, "nonclosing inspection never changes journal")
+        do {
+            _ = try await tool.run(consent: review.consent.replacingOccurrences(of: "supersede-nonclosing:", with: "supersede-unresolved:"))
+            throw Failure.assertion("older approval accepted for retained receivers")
+        } catch OpeningEpochError.consentRequired { count += 1 }
+        _ = try await tool.run(consent: review.consent)
+        try await validate(f, original: original, token: review.consent)
+        try require(await f.system.effects.isEmpty, "archival never stops, launches or activates receivers")
+        try require(try await tool.run(consent: review.consent).alreadyApplied, "nonclosing archival is idempotent")
+
+        for submittedQuit in [false, true] {
+            let base = URL(fileURLWithPath: "/private/tmp/codexswoop-epoch-qa-\(UUID().uuidString)")
+            let closing = try await ReleaseFixture.make(root: base, running: true)
+            defer { try? FileManager.default.removeItem(at: closing.root) }
+            for (i, a) in closing.associations.enumerated() { await closing.system.setSyntheticInstance(a.environmentID, precise(210_000 + Int32(i))) }
+            let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: closing.store, validator: closing.validator, system: closing.system)
+            let plan = try await driver.planEnvironmentAccount(profile: closing.profiles[1], mode: .closeOthersAndOpen)
+            var record = try await PendingOpeningOperation(scope: EnvironmentOperationScope(plan: plan, managed: closing.store.inspectManagedEnvironments()),
+                bootSession: "synthetic-boot", buildFingerprint: closing.system.openingBuildFingerprint())
+            if submittedQuit { record.effects = [.normalQuit(plan.others[0].instance)] }
+            let journal = OpeningOperationJournal(root: closing.validator.managedRoot)
+            try journal.begin(record); journal.abandon()
+            let before = try pair(closing.validator.managedRoot)
+            var refused = engine(closing.validator.managedRoot, record: record); refused.nonclosingHistory = true
+            do { _ = try await refused.run(consent: nil); throw Failure.assertion("closing history treated as nonclosing") }
+            catch OpeningEpochError.evidenceChanged { count += 1 }
+            try require(try pair(closing.validator.managedRoot) == before, "closing history stays untouched")
+        }
+        print("PASS explicit nonclosing archival retains live receivers and changed catalogs; rejects old consent and any planned/submitted quit")
+    }
     static func negativeChecks() async throws {
         for mode in ["running", "boot", "build", "signature", "unknown", "reuse", "generation", "inventory-drift", "catalog-replaced", "setup", "lock", "corrupt", "future", "missing-precision", "orphan-backup", "oversized-pair", "metadata-lock", "permissions", "environment-directory-replaced", "after-archive-inventory-drift", "after-archive-running", "cancelled"] {
             context = "negative: " + mode
@@ -253,6 +299,7 @@ private final class Stages: @unchecked Sendable {
             try require(!OpeningEpochRecovery.requiresSwoopShutdown(pid: 101, bundleID: "synthetic.official", executable: "ChatGPT", terminated: false, inspectorPID: 100), "official Codex is never a shutdown target")
             try await launchedReceiverSupersession()
             try await profileOpeningAfterSupersession()
+            try await nonclosingHistoryChecks()
             try await negativeChecks()
             let (f, record) = try await make(); defer { try? FileManager.default.removeItem(at: f.root) }
             let original = try pair(f.validator.managedRoot), tool = engine(f.validator.managedRoot, record: record)

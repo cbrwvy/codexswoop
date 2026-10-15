@@ -151,16 +151,26 @@ final class ProfileManager: ObservableObject {
             return
         }
         #endif
+        let previousInstallation = installation
+        let previousAvailability = codexAvailability
         installation = CodexDetector().detect(preferredPath: isTestStorage ? testPreferredPath : defaults.string(forKey: "codexApplicationPath"))
         guard let found = installation else { codexAvailability = .missing; return }
         guard OfficialCodexPolicy.acceptsMetadata(found), !isTestStorage else { codexAvailability = .unverified; return }
-        codexAvailability = .checking
+        // Reopening the menu revalidates the same installation in the background.
+        // Keep its last result visible instead of briefly inserting the full warning
+        // block on every activation. Native actions still validate before dispatch.
+        if found != previousInstallation || previousAvailability == .checking {
+            codexAvailability = .checking
+        }
         let revision = detectionRevision
         detectionTask = Task { [weak self] in
             guard let self else { return }
             let verified: Bool
             do { try await desktopSystem.validateInstallation(); verified = true }
-            catch { errorLog.record(.installation, error: error); verified = false }
+            catch {
+                guard !Task.isCancelled, revision == detectionRevision else { return }
+                errorLog.record(.installation, error: error); verified = false
+            }
             guard !Task.isCancelled, revision == detectionRevision else { return }
             codexAvailability = verified && CodexDetector().inspect(found.url) == found ? .verified : .unverified
         }

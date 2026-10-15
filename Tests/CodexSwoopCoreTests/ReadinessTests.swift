@@ -21,6 +21,15 @@ private actor StartupOwnershipSamples {
     }
 }
 
+private actor InventorySamples {
+    var remaining: Int
+    init(_ remaining: Int) { self.remaining = remaining }
+    func read(_ timeout: Duration) throws -> DesktopInstanceInventory {
+        if remaining > 0 { remaining -= 1; throw EnvironmentError.processChanged }
+        return DesktopInstanceInventory(entries: [], unknownCount: 0)
+    }
+}
+
 @MainActor final class P0LaunchTests: XCTestCase {
     private func fixture(running: Bool = false) async throws -> ReleaseFixture {
         let root = URL(fileURLWithPath: "/private/tmp/codexswoop-p0-\(UUID().uuidString)")
@@ -31,6 +40,57 @@ private actor StartupOwnershipSamples {
         let root = URL(fileURLWithPath: "/private/tmp/csp0-" + UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         return root
+    }
+    func testExitingOwnedQAProcessRetainsKernelGenerationUntilReaped() async throws {
+        // Only this test's spawned child. No native application or account state.
+        var child: pid_t = 0
+        var arguments: [UnsafeMutablePointer<CChar>?] = [strdup("/bin/sleep"), strdup("0.5"), nil]
+        var environment: [UnsafeMutablePointer<CChar>?] = [nil]
+        defer { for argument in arguments { free(argument) } }
+        let launched = arguments.withUnsafeMutableBufferPointer { argv in
+            environment.withUnsafeMutableBufferPointer { env in
+                posix_spawn(&child, "/bin/sleep", nil, nil, argv.baseAddress!, env.baseAddress!)
+            }
+        }
+        guard launched == 0 else { throw POSIXError(POSIXErrorCode(rawValue: launched) ?? .EAGAIN) }
+        defer { var status: Int32 = 0; _ = waitpid(child, &status, 0) }
+        let original = try DesktopProcessMetadata.read(child).preciseGeneration()
+        XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(original), true)
+        let reused = DesktopGeneration(pid: child, uid: original.uid, started: original.started,
+            startTimeMicroseconds: original.startTimeMicroseconds! + 1)
+        XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(reused), false, "Same PID with another precise start must fail")
+        let foreign = DesktopGeneration(pid: child, uid: original.uid + 1, started: original.started,
+            startTimeMicroseconds: original.startTimeMicroseconds)
+        XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(foreign), false)
+        try await Task.sleep(for: .milliseconds(600))
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, child]
+        var record = kinfo_proc(), size = MemoryLayout<kinfo_proc>.size
+        XCTAssertEqual(sysctl(&mib, u_int(mib.count), &record, &size, nil, 0), 0)
+        XCTAssertEqual(size, MemoryLayout<kinfo_proc>.size)
+        XCTAssertEqual(record.kp_proc.p_stat, 5, "The QA child remains a real unreaped zombie, never treated as absent")
+        // Darwin may withhold proc_pidinfo for zombies. Unreadable identity is not
+        // proof of PID reuse or exit; the wait still sees the PID until it is reaped.
+        XCTAssertNotEqual(DesktopProcessMetadata.kernelGenerationMatches(original), false)
+        let incomplete = DesktopGeneration(pid: child, uid: original.uid, started: original.started)
+        XCTAssertNotEqual(incomplete, original, "The former ps-only comparison wrongly rejects the same exiting PID")
+    }
+    func testStrictInventoryCanSettleAfterExitWithoutRepeatingAnEffect() async throws {
+        let samples = InventorySamples(1)
+        let result = try await DesktopReadiness.inventory(timeout: .seconds(1), interval: .milliseconds(1)) {
+            try await samples.read($0)
+        }
+        XCTAssertTrue(result.entries.isEmpty)
+        let neverReady = InventorySamples(1_000)
+        do {
+            _ = try await DesktopReadiness.inventory(timeout: .milliseconds(10), interval: .milliseconds(1)) { try await neverReady.read($0) }
+            XCTFail("Unstable inventory accepted")
+        } catch { XCTAssertEqual(error as? EnvironmentError, .processChanged) }
+        do {
+            _ = try await DesktopReadiness.inventory { _ in throw EnvironmentError.incompatibleBuild }
+            XCTFail("Invalid signature/build retried as readiness")
+        } catch { XCTAssertEqual(error as? EnvironmentError, .incompatibleBuild) }
+        let unknown = try await DesktopReadiness.inventory { _ in DesktopInstanceInventory(entries: [], unknownCount: 1) }
+        XCTAssertThrowsError(try unknown.validate(), "Unknown GUI remains a blocker")
     }
     func testCloseOthersWithZeroOthersAllowsLaunchedReceiverTreeGrowth() async throws {
         let f = try await fixture()
@@ -66,6 +126,31 @@ private actor StartupOwnershipSamples {
         }
         let incomplete = DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate)
         XCTAssertFalse(DesktopOpeningTarget.matches(grown, expected: incomplete, newlyLaunched: true))
+    }
+    func testClosingRecheckAcceptsFreshOwnedHelpersButRejectsReplacedGUI() async throws {
+        let f = try await fixture(running: true)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        for (index, a) in f.associations.enumerated() {
+            let g = DesktopGeneration(pid: 190_000 + Int32(index), uid: getuid(), started: "synthetic", startTimeMicroseconds: UInt64(index + 1))
+            await f.system.setSyntheticInstance(a.environmentID, DesktopInstance(main: g, related: [g], nativeLaunchDate: Date(), signingIdentity: signature))
+        }
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let plan = try await driver.planEnvironmentAccount(profile: f.profiles[1], mode: .closeOthersAndOpen)
+        for a in f.associations {
+            let old = await f.system.instances[a.environmentID]!
+            let child = DesktopGeneration(pid: old.main.pid + 1_000, uid: getuid(), started: "helper", startTimeMicroseconds: 10)
+            await f.system.setSyntheticInstance(a.environmentID, DesktopInstance(main: old.main, related: [old.main, child], nativeLaunchDate: old.nativeLaunchDate, signingIdentity: signature))
+        }
+        try await driver.recheckOpening(plan, remaining: plan.others)
+        let original = plan.others[0].instance
+        let replaced = DesktopGeneration(pid: original.main.pid, uid: original.main.uid, started: original.main.started, startTimeMicroseconds: 999)
+        await f.system.setSyntheticInstance(plan.others[0].association.environmentID,
+            DesktopInstance(main: replaced, related: [replaced], nativeLaunchDate: original.nativeLaunchDate, signingIdentity: signature))
+        do { try await driver.recheckOpening(plan, remaining: plan.others); XCTFail("Replaced GUI accepted for termination") }
+        catch { XCTAssertEqual(error as? AccountOpeningError, .processChanged) }
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty, "Read-only checks never dispatch effects")
     }
     func testStageMarkerRoundTripsAndLegacyFailureStillDecodes() throws {
         let value = OpeningFailureRecord(.opening(.processChanged), stage: .activationScopeInventory)

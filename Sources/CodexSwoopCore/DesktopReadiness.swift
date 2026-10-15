@@ -3,6 +3,23 @@ import Foundation
 /// Repeats only strict read-only ownership observations. Never dispatches launch, activation or quit.
 public enum DesktopReadiness {
     private enum ReceiverMismatch: Error { case changed }
+    /// A GUI's normal exit can race NSWorkspace and kernel inventory updates.
+    /// Repeat only the strict inventory read; no lifecycle request is repeated.
+    public static func inventory(timeout: Duration = .seconds(5), interval: Duration = .milliseconds(150),
+        observe: @Sendable (Duration) async throws -> DesktopInstanceInventory) async throws -> DesktopInstanceInventory {
+        let deadline = ContinuousClock.now.advanced(by: min(timeout, .seconds(10)))
+        var lastReason = EnvironmentError.processChanged
+        while ContinuousClock.now < deadline {
+            try Task.checkCancellation()
+            do { return try await observe(min(ContinuousClock.now.duration(to: deadline), .seconds(5))) }
+            catch let error as EnvironmentError where error == .processChanged || error == .ambiguousInstance || error == .backendNotReady {
+                lastReason = error
+            }
+            let delay = min(interval, ContinuousClock.now.duration(to: deadline))
+            if delay > .zero { try await Task.sleep(for: delay) }
+        }
+        throw lastReason
+    }
     public static func wait(timeout: Duration = .seconds(20), interval: Duration = .milliseconds(150),
         expectedReceiver: DesktopInstance? = nil, preserveReason: Bool = false,
         observe: @Sendable (Duration) async throws -> DesktopObservation) async throws -> DesktopInstance {
@@ -41,8 +58,8 @@ public enum DesktopReadiness {
     }
 }
 
-/// A newly launched GUI retains its exact identity while Electron adds/removes descendants.
-/// Use only after fresh strict root/signature/ancestry observation, never to authorize a quit.
+/// A signed GUI retains its exact generation while Electron adds/removes descendants.
+/// Every caller must first obtain fresh strict root/signature/ancestry ownership evidence.
 public enum DesktopOpeningTarget {
     public static func matches(_ observed: DesktopInstance?, expected: DesktopInstance?, newlyLaunched: Bool, allowChildChanges: Bool = false) -> Bool {
         if observed == expected { return true }
@@ -52,11 +69,11 @@ public enum DesktopOpeningTarget {
             && observed.signingIdentity == expected.signingIdentity
     }
     public static func confirms(_ inventory: DesktopInstanceInventory, expected: [DesktopInventoryEntry],
-        launchedTarget: DesktopInventoryEntry?) -> Bool {
+        launchedTarget: DesktopInventoryEntry?, allowChildChanges: Bool = false) -> Bool {
         inventory.entries.count == expected.count && expected.allSatisfy { entry in
             inventory.entries.contains { fresh in
                 fresh.association == entry.association && matches(fresh.instance, expected: entry.instance,
-                    newlyLaunched: launchedTarget == entry)
+                    newlyLaunched: launchedTarget == entry, allowChildChanges: allowChildChanges)
             }
         }
     }

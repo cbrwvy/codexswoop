@@ -19,6 +19,17 @@ public struct OpeningEpochRecovery: Sendable {
         guard acceptingUnknownOutcome else { throw OpeningEpochError.consentRequired }
         return try await engine().run(consent: consent)
     }
+    /// Explicitly archives non-closing history while retaining verified live receivers.
+    /// Never called by the app, startup or Check Again; requires its own exact token.
+    public func inspectNonclosing() async throws -> OpeningEpochReview {
+        var tool = engine(preserveRunningReceivers: true); tool.nonclosingHistory = true
+        return try await tool.run(consent: nil)
+    }
+    public func archiveNonclosing(consent: String, acceptingUnknownOutcome: Bool) async throws -> OpeningEpochReview {
+        guard acceptingUnknownOutcome else { throw OpeningEpochError.consentRequired }
+        var tool = engine(preserveRunningReceivers: true); tool.nonclosingHistory = true
+        return try await tool.run(consent: consent)
+    }
     public func inspectLaunchOnly(operationID: UUID) async throws -> OpeningEpochReview {
         var tool = engine(); tool.retirementOperation = operationID
         return try await tool.run(consent: nil)
@@ -38,7 +49,7 @@ public struct OpeningEpochRecovery: Sendable {
         if pid == inspectorPID && executable == "codexswoop-recovery" { return false }
         return bundleID == "io.github.cbrwvy.codexswoop" || executable == "CodexSwoop"
     }
-    private func engine() -> OpeningEpochEngine {
+    private func engine(preserveRunningReceivers: Bool = false) -> OpeningEpochEngine {
         let native = NativeDesktopSystem()
         return OpeningEpochEngine(root: ProfileStore.defaultRoot, sample: { references, originals in
             let running = await MainActor.run {
@@ -56,13 +67,13 @@ public struct OpeningEpochRecovery: Sendable {
                     guard count == 0, errno == ESRCH else { throw OpeningEpochError.originalPIDAbsenceUnproven(pid) }
                 }
             }
-            try requireAbsent()
+            if !preserveRunningReceivers { try requireAbsent() }
             let boot = try OpeningOperationJournal.bootSession()
             let build = try await native.openingBuildFingerprint()
             let inventory = try await native.environmentInstanceInventory(associations: references)
             guard try OpeningOperationJournal.bootSession() == boot,
                   try await native.openingBuildFingerprint() == build else { throw OpeningEpochError.evidenceChanged }
-            try requireAbsent()
+            if !preserveRunningReceivers { try requireAbsent() }
             let runningAfter = await MainActor.run {
                 NSWorkspace.shared.runningApplications.contains {
                     Self.requiresSwoopShutdown(pid: $0.processIdentifier, bundleID: $0.bundleIdentifier,
@@ -70,7 +81,7 @@ public struct OpeningEpochRecovery: Sendable {
                 }
             }
             return OpeningEpochObservation(boot: boot, build: build, inventory: inventory,
-                originalPIDsAbsent: true, swoopRunning: running || runningAfter)
+                originalPIDsAbsent: !preserveRunningReceivers, swoopRunning: running || runningAfter)
         })
     }
 }
@@ -81,7 +92,8 @@ public struct OpeningEpochReview: Sendable {
     public let swoopRunning: Bool
     public let alreadyApplied: Bool
     public var retiringLaunchOnly = false
-    public var consent: String { "\(retiringLaunchOnly ? "retire-launch-only" : "supersede-unresolved"):\(storeID.uuidString):\(operationID.uuidString):\(journalSHA256)" }
+    public var nonclosingHistory = false
+    public var consent: String { "\(nonclosingHistory ? "supersede-nonclosing" : (retiringLaunchOnly ? "retire-launch-only" : "supersede-unresolved")):\(storeID.uuidString):\(operationID.uuidString):\(journalSHA256)" }
 }
 
 struct OpeningEpochObservation: Sendable {
@@ -108,6 +120,7 @@ struct OpeningEpochManifest: Codable, Equatable, Sendable {
     let profilesIdentity: DirectoryIdentity
     let catalogIdentities: [String: OpeningEpochFileIdentity]
     let hashes: [String: String]
+    var nonclosingHistory: Bool? = nil
     var priorProvenance: OpeningEpochProvenance? = nil
     var priorArchiveIdentity: DirectoryIdentity? = nil
 }
@@ -139,6 +152,7 @@ struct OpeningEpochEngine: Sendable {
     var fault: @Sendable (String) throws -> Void = { _ in }
     var writer = AtomicMetadataWriter()
     var retirementOperation: UUID? = nil
+    var nonclosingHistory = false
     var validator: EnvironmentValidator { EnvironmentValidator(managedRoot: root) }
     static func retirementArchive(_ operation: UUID) -> String { "UnresolvedLaunchOpening-" + operation.uuidString.lowercased() }
     var archive: URL { root.appendingPathComponent(retirementOperation.map(Self.retirementArchive) ?? Self.archiveName) }
@@ -185,8 +199,8 @@ struct OpeningEpochEngine: Sendable {
             a.isTemporary && ids.contains(a.profileID) && !associations.associations.contains(a)
                 && !associations.associations.contains(where: { $0.environmentID == a.environmentID })
         }
-        guard try PendingOpeningOperation.digest(profiles: profiles, associations: associations, managed: managed,
-            retained: record.mode == .closeOthersAndOpen ? research : []) == record.catalogDigest else { throw OpeningEpochError.evidenceChanged }
+        guard try nonclosingHistory || (PendingOpeningOperation.digest(profiles: profiles, associations: associations, managed: managed,
+            retained: record.mode == .closeOthersAndOpen ? research : []) == record.catalogDigest) else { throw OpeningEpochError.evidenceChanged }
         var references = associations.associations
         for a in managed.prepared + retained.environments.map(\.association) + research {
             if let old = references.first(where: { $0.environmentID == a.environmentID }) {
@@ -233,8 +247,9 @@ struct OpeningEpochEngine: Sendable {
         } else {
             guard original.schemaVersion == 2, original.supersession == nil else { throw OpeningEpochError.alreadySuperseded }
         }
+        guard !nonclosingHistory || Self.isNonclosing(record) else { throw OpeningEpochError.evidenceChanged }
         let review = OpeningEpochReview(storeID: original.storeID, operationID: record.id,
-            journalSHA256: Self.hash(originalJournal), swoopRunning: false, alreadyApplied: false, retiringLaunchOnly: retirementOperation != nil)
+            journalSHA256: Self.hash(originalJournal), swoopRunning: false, alreadyApplied: false, retiringLaunchOnly: retirementOperation != nil, nonclosingHistory: nonclosingHistory)
         if let consent, consent != review.consent { throw OpeningEpochError.consentRequired }
         if let manifest {
             guard manifest.originalStoreID == original.storeID, manifest.operationID == record.id,
@@ -246,7 +261,7 @@ struct OpeningEpochEngine: Sendable {
                try !Self.absent(archive.appendingPathComponent("epoch-commit.json")) {
                 try Self.verifyProvenance(root: root, provenance: current.supersession, storeID: current.storeID)
                 return OpeningEpochReview(storeID: original.storeID, operationID: record.id,
-                    journalSHA256: review.journalSHA256, swoopRunning: false, alreadyApplied: true, retiringLaunchOnly: review.retiringLaunchOnly)
+                    journalSHA256: review.journalSHA256, swoopRunning: false, alreadyApplied: true, retiringLaunchOnly: review.retiringLaunchOnly, nonclosingHistory: review.nonclosingHistory)
             }
             try verifyCatalogHashes(files, manifest)
             // Resume only the exact old pair or watermark-first torn transition that
@@ -294,22 +309,22 @@ struct OpeningEpochEngine: Sendable {
             let result = try await sample(references, originalPIDs)
             try result.inventory.validate(); try result.build.validate()
             guard result.boot == record.bootSession, result.build == record.buildFingerprint,
-                  result.originalPIDsAbsent else { throw OpeningEpochError.evidenceChanged }
+                  (result.originalPIDsAbsent || nonclosingHistory) else { throw OpeningEpochError.evidenceChanged }
             for entry in result.inventory.entries {
                 guard references.contains(entry.association), entry.instance.signingIdentity != nil,
-                      entry.instance.related.allSatisfy({ $0.startTimeMicroseconds != nil && !originalPIDs.contains($0.pid) }) else { throw OpeningEpochError.evidenceChanged }
+                      entry.instance.related.allSatisfy({ $0.startTimeMicroseconds != nil && (nonclosingHistory || !originalPIDs.contains($0.pid)) }) else { throw OpeningEpochError.evidenceChanged }
             }
             try revalidate(); return result
         }
         func same(_ a: OpeningEpochObservation, _ b: OpeningEpochObservation) -> Bool {
             a.boot == b.boot && a.build == b.build && a.inventory.entries.count == b.inventory.entries.count
-                && a.inventory.entries.allSatisfy { x in b.inventory.entries.contains { $0.association == x.association && $0.instance == x.instance } }
+                && DesktopOpeningTarget.confirms(b.inventory, expected: a.inventory.entries, launchedTarget: nil, allowChildChanges: nonclosingHistory)
         }
         let first = try await observation(), second = try await observation()
         guard same(first, second) else { throw OpeningEpochError.evidenceChanged }
         guard let consent else {
             return OpeningEpochReview(storeID: review.storeID, operationID: review.operationID,
-                journalSHA256: review.journalSHA256, swoopRunning: first.swoopRunning || second.swoopRunning, alreadyApplied: false, retiringLaunchOnly: review.retiringLaunchOnly)
+                journalSHA256: review.journalSHA256, swoopRunning: first.swoopRunning || second.swoopRunning, alreadyApplied: false, retiringLaunchOnly: review.retiringLaunchOnly, nonclosingHistory: review.nonclosingHistory)
         }
         guard !first.swoopRunning, !second.swoopRunning else { throw OpeningEpochError.swoopRunning }
         let prepared: OpeningEpochManifest
@@ -328,7 +343,7 @@ struct OpeningEpochEngine: Sendable {
                 originalStoreID: original.storeID, operationID: record.id, newStoreID: newID,
                 rootIdentity: lease.identity, profilesIdentity: profilesIdentity,
                 catalogIdentities: Dictionary(uniqueKeysWithValues: Self.catalogs.map { ($0, OpeningEpochFileIdentity(files[$0]!)) }), hashes: hashes,
-                priorProvenance: original.supersession, priorArchiveIdentity: priorIdentity)
+                nonclosingHistory: nonclosingHistory ? true : nil, priorProvenance: original.supersession, priorArchiveIdentity: priorIdentity)
             try archiveWrite(Self.encode(prepared), name: "manifest.json")
         }
         try verifyArchive(prepared)
@@ -381,7 +396,8 @@ struct OpeningEpochEngine: Sendable {
               Set(m.hashes.keys) == Set(catalogs + pair),
               Set(m.catalogIdentities.keys) == Set(catalogs) else { throw OpeningEpochError.invalidArchive }
         let oldHash = m.hashes[pair[0]] ?? ""
-        let prefix = m.schemaVersion == 2 ? "retire-launch-only" : "supersede-unresolved"
+        let prefix = m.nonclosingHistory == true ? "supersede-nonclosing" : (m.schemaVersion == 2 ? "retire-launch-only" : "supersede-unresolved")
+        guard m.nonclosingHistory != true || m.schemaVersion == 1 else { throw OpeningEpochError.invalidArchive }
         guard m.authorization == "\(prefix):\(m.originalStoreID.uuidString):\(m.operationID.uuidString):\(oldHash)",
               (m.schemaVersion == 1 && m.priorProvenance == nil && m.priorArchiveIdentity == nil)
                 || (m.schemaVersion == 2 && m.priorProvenance != nil && m.priorProvenance?.archiveName == nil && m.priorArchiveIdentity != nil) else { throw OpeningEpochError.invalidArchive }
@@ -412,6 +428,9 @@ struct OpeningEpochEngine: Sendable {
         guard try archiveBytes("manifest.json") == Self.encode(m) else { throw OpeningEpochError.invalidArchive }
         let original = try OpeningOperationJournal.decodePair(archiveBytes(Self.pair[0]), archiveBytes(Self.pair[1]))
         guard original.storeID == m.originalStoreID, original.pending?.id == m.operationID else { throw OpeningEpochError.invalidArchive }
+        if m.nonclosingHistory == true {
+            guard original.pending.map(Self.isNonclosing) == true else { throw OpeningEpochError.invalidArchive }
+        }
         if m.schemaVersion == 1 {
             guard original.schemaVersion == 2, original.supersession == nil else { throw OpeningEpochError.invalidArchive }
         } else {
@@ -437,6 +456,13 @@ struct OpeningEpochEngine: Sendable {
               m.newStoreID == storeID, m.originalStoreID == p.originalStoreID, m.operationID == p.operationID,
               try engine.validator.directory(root.path, privateOnly: true) == m.rootIdentity,
               try engine.validator.directory(root.appendingPathComponent("Profiles").path, privateOnly: true) == m.profilesIdentity else { throw OpeningEpochError.invalidArchive }
+    }
+    static func isNonclosing(_ record: PendingOpeningOperation) -> Bool {
+        record.others.isEmpty && !record.effects.contains { effect in
+            if case .normalQuit = effect { return true }
+            if case .unknown = effect { return true }
+            return false
+        }
     }
     static func isLaunchOnly(_ record: PendingOpeningOperation) -> Bool {
         record.mode == .openSeparately && record.targetInstance == nil && record.others.isEmpty

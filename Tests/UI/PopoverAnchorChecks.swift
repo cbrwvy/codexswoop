@@ -127,7 +127,7 @@ import CodexSwoopCore
         let tracking = NSMenu(title: "Fixture tracking")
         NotificationCenter.default.post(name: .swoopMenuBeganTracking, object: tracking)
         let stableFrame = growingMenu.view.window!.frame
-        manager.errorMessage = String(repeating: "Synthetic diagnostic detail. ", count: 25); settle(); settle()
+        manager.previewInstallationForChecks(.unverified); settle(); settle()
         live.refresh()
         precondition(popover.contentSize.height == compactHeight && growingMenu.view.window!.frame == stableFrame,
             "Resize/reanchor must wait until the native menu tracking session ends")
@@ -135,9 +135,9 @@ import CodexSwoopCore
         settle(); settle()
         let diagnostics = "Sizing QA compact=\(compactHeight), grown=\(popover.contentSize.height), preferred=\(growingMenu.preferredContentSize), fitting=\(growingMenu.view.fittingSize), documents=\(scrollViews(growingMenu.view).map { $0.documentView?.bounds.height ?? 0 })\n"
         FileHandle.standardError.write(Data(diagnostics.utf8))
-        precondition(popover.contentSize.height > compactHeight, "Diagnostic growth must update the native content height")
-        manager.errorMessage = nil; settle(); settle()
-        precondition(abs(popover.contentSize.height - compactHeight) < 1, "Diagnostic removal must shrink the native content height")
+        precondition(popover.contentSize.height > compactHeight, "Installation warning growth must update the native content height")
+        manager.previewInstallationForChecks(.verified); settle(); settle()
+        precondition(abs(popover.contentSize.height - compactHeight) < 1, "Installation warning removal must shrink the native content height")
         popover.performClose(nil)
         print("PASS real bounded SwiftUI popover, diagnostic growth/shrink, single-scroll footer reachability and native screen containment")
         print("PASS real status-item opening/closing; only disposable icons in this QA process were changed")

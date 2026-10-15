@@ -382,7 +382,7 @@ extension DesktopSwitchingDriver {
         try await system.validateInstallation()
         let instance: DesktopInstance?
         do { instance = try await system.observe(association).unique() }
-        catch let error as EnvironmentError where environmentScoped && mode == .openSeparately
+        catch let error as EnvironmentError where environmentScoped
             && (error == .ambiguousInstance || error == .processChanged || error == .backendNotReady) {
             instance = try await DesktopReadiness.wait(timeout: .seconds(5), preserveReason: true) {
                 try await self.system.observe(association, timeout: $0)
@@ -410,7 +410,8 @@ extension DesktopSwitchingDriver {
             for candidate in retained { try validator.revalidate(candidate) }
             let inventory = try await environmentScoped ? system.environmentInstanceInventory(associations: inventoryAssociations) : system.instanceInventory(associations: inventoryAssociations)
             try inventory.validate()
-            guard inventory.entries.first(where: { $0.association == association })?.instance == instance else { throw AccountOpeningError.processChanged }
+            guard DesktopOpeningTarget.matches(inventory.entries.first(where: { $0.association == association })?.instance,
+                expected: instance, newlyLaunched: false, allowChildChanges: environmentScoped) else { throw AccountOpeningError.processChanged }
             for entry in inventory.entries where entry.association != association {
                 guard inventoryAssociations.contains(entry.association),
                       let owner = profiles.profiles.first(where: { $0.id == entry.association.profileID }) else { throw AccountOpeningError.unknownInstances }
@@ -449,9 +450,9 @@ extension DesktopSwitchingDriver {
         try await system.validateInstallation()
         openingStage = .driverPostflightTarget
         let currentTarget = try await system.observeOpeningTarget(plan.association, launchedReceiver: scopedOpening ? launched : nil,
-            expectedReceiver: scopedOpening && plan.mode == .openSeparately ? plan.targetInstance : nil)
+            expectedReceiver: scopedOpening ? plan.targetInstance : nil)
         guard DesktopOpeningTarget.matches(currentTarget, expected: launched ?? plan.targetInstance,
-            newlyLaunched: scopedOpening && launched != nil, allowChildChanges: scopedOpening && plan.mode == .openSeparately) else { throw AccountOpeningError.processChanged }
+            newlyLaunched: scopedOpening && launched != nil, allowChildChanges: scopedOpening) else { throw AccountOpeningError.processChanged }
         if let currentTarget, !scopedOpening {
             try await requireIdentity(plan.association, instance: currentTarget)
             if let activation {
@@ -465,12 +466,15 @@ extension DesktopSwitchingDriver {
         else if !scopedOpening { try await verifier.validateLaunchReadiness(plan.association) }
         if plan.mode == .closeOthersAndOpen {
             openingStage = .driverPostflightInventory
-            let inventory = try await scopedOpening ? system.environmentInstanceInventory(associations: plan.associations.associations + scopedRetainedResearch) : system.instanceInventory(associations: plan.associations.associations)
-            try inventory.validate()
             let expected = remaining.map { DesktopInventoryEntry(association: $0.association, instance: $0.instance) }
                 + (currentTarget.map { [DesktopInventoryEntry(association: plan.association, instance: $0)] } ?? [])
             let launchedTarget = scopedOpening && launched != nil ? currentTarget.map { DesktopInventoryEntry(association: plan.association, instance: $0) } : nil
-            guard DesktopOpeningTarget.confirms(inventory, expected: expected, launchedTarget: launchedTarget) else { throw AccountOpeningError.processChanged }
+            let inventory = try await scopedOpening ? system.environmentInstanceInventory(associations: plan.associations.associations + scopedRetainedResearch)
+                : system.instanceInventory(associations: plan.associations.associations)
+            try inventory.validate()
+            openingStage = .driverInventoryComparison
+            guard DesktopOpeningTarget.confirms(inventory, expected: expected, launchedTarget: launchedTarget,
+                allowChildChanges: scopedOpening) else { throw AccountOpeningError.processChanged }
             for item in remaining {
                 try validator.revalidate(item.association)
                 if !scopedOpening { try await requireIdentity(item.association, instance: item.instance) }
@@ -488,7 +492,8 @@ extension DesktopSwitchingDriver {
         } else { try await retainedAssociation(item.association) }
         try validator.revalidate(item.association)
         try await system.validateInstallation()
-        guard try await system.observe(item.association).unique() == item.instance else { throw AccountOpeningError.processChanged }
+        guard DesktopOpeningTarget.matches(try await system.observe(item.association).unique(), expected: item.instance,
+            newlyLaunched: false, allowChildChanges: scopedOpening) else { throw AccountOpeningError.processChanged }
         if !scopedOpening { try await requireIdentity(item.association, instance: item.instance) }
         try Task.checkCancellation()
         if !scopedOpening { try await beginLegacyOpeningJournal() }
@@ -497,6 +502,7 @@ extension DesktopSwitchingDriver {
         quitRequested = true // Never retry a possibly delivered normal-quit request.
         if scopedOpening {
             guard let scope = operationScope else { throw EnvironmentOpeningError.confirmationRequired }
+            openingStage = .quitDispatch
             try await system.quitScopedEnvironment(scope, item: DesktopInventoryEntry(association: item.association, instance: item.instance))
         } else { try await system.requestNormalQuit(item.instance, association: item.association) }
     }
@@ -504,6 +510,7 @@ extension DesktopSwitchingDriver {
         guard openingToken != nil, quitRequested else { throw AccountOpeningError.processChanged }
         if scopedOpening {
             guard let scope = operationScope else { throw EnvironmentOpeningError.confirmationRequired }
+            openingStage = .exitWait
             try await system.waitForScopedExit(scope, item: DesktopInventoryEntry(association: item.association, instance: item.instance))
         } else { try await system.waitForExit(item.instance, association: item.association, timeout: min(timeout, .seconds(10))) }
     }
@@ -749,8 +756,8 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
         try validator.revalidate(plan.association)
         openingStage = .driverPostflightTarget
         let fresh = try await system.observeOpeningTarget(plan.association, launchedReceiver: launched,
-            expectedReceiver: plan.mode == .openSeparately ? plan.targetInstance : nil)
-        guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: launched != nil, allowChildChanges: plan.mode == .openSeparately) else { throw AccountOpeningError.processChanged }
+            expectedReceiver: plan.targetInstance)
+        guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: launched != nil, allowChildChanges: true) else { throw AccountOpeningError.processChanged }
         openingStage = .driverForeground
         try await system.verifyPIDForeground(instance)
     }

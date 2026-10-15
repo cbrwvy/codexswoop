@@ -48,7 +48,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				CURRENT_PROJECT_VERSION = "10";
+				CURRENT_PROJECT_VERSION = "15";
 				MARKETING_VERSION = "1.0.0";
 				INFOPLIST_FILE = "Resources/Info.plist";
 				ENABLE_APP_SANDBOX = "NO";
@@ -149,7 +149,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				CURRENT_PROJECT_VERSION = "10";
+				CURRENT_PROJECT_VERSION = "15";
 				MARKETING_VERSION = "1.0.0";
 				INFOPLIST_FILE = "Resources/Info.plist";
 				ENABLE_APP_SANDBOX = "NO";
