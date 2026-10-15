@@ -1,6 +1,6 @@
 # User Guide
 
-Applies to experimental **1.0.0 (5)** / `v1.0.0-rc.2`: Apple Silicon arm64 only, deployment target macOS 14.0 (Sonoma runtime acceptance not performed). Automated checks run on macOS 27.0.1 (26A434); final installer/first-launch acceptance is untested. Official Codex at `/Applications/ChatGPT.app` is checked dynamically by publisher signature and installation/process evidence. Ordinary version/build updates are accepted without a CodexSwoop update. Last individually tested: **26.1007.21159 (20052)**; newer versions are informationally untested. Other installation paths remain unsupported for opening. The app is ad hoc signed and not notarized. Technical ChatGPT identity verification is absent, full authentication isolation is not guaranteed, and Live Usage is disabled (identity/Usage deferred to 1.1). See [Release Notes](RELEASE_NOTES_v1.0.0-rc.2.md) for installation and Gatekeeper guidance.
+Applies to stable **1.0.0 (build 15)** / `v1.0.0`, distributed for Apple Silicon arm64. Both executables declare macOS 14.0 as their minimum. Real two-profile acceptance used macOS 27.0.1 and official Codex **26.1007.71326**; automated CI uses macOS 15 / Xcode 16.4. macOS 14 runtime, Intel, clean-machine and VM acceptance are not claimed. Official Codex at `/Applications/ChatGPT.app` must pass current publisher, installation and environment-ownership checks. Version/build numbers and the older reference-version notice are informational. The app is **ad hoc signed and not notarized**, with no Developer ID or stapled ticket; Gatekeeper may block first launch. Technical ChatGPT identity verification and full authentication isolation are not guaranteed. Live Usage is unavailable. See [Release Notes](RELEASE_NOTES_v1.0.0.md) for installation and limitations.
 
 ## Local profiles and ChatGPT accounts
 
@@ -56,6 +56,6 @@ Live Codex usage limits are not available in the current version.
 - Unknown process ownership or an uncertain operation can block more actions and require review.
 - Closing multiple Codex instances is a series of normal-quit requests, not one atomic or reversible action.
 - Managed directories do not guarantee complete authentication separation because services may be shared outside those directories.
-- The planned public release targets Apple Silicon M1 or newer and macOS 14 Sonoma or later, pending runtime confirmation. Intel Macs are outside that target.
+- The release artifact is Apple Silicon arm64 only (M1 or newer), with a declared macOS 14.0 minimum. Runtime acceptance covers macOS 27.0.1; macOS 14 and Intel acceptance are not claimed.
 
 For implementation and security details, see [BUILDING.md](BUILDING.md) and [SECURITY.md](SECURITY.md).

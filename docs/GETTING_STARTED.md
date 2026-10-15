@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide describes the current pre-release interface. Local profile management is independent of the Codex version. Opening requires a verified official installation and coherent process/environment evidence.
+This guide describes the 1.0.0 interface. Local profile management is independent of the Codex version. Opening requires a verified official installation and coherent process/environment evidence.
 
 ## What is CodexSwoop?
 
@@ -8,11 +8,11 @@ CodexSwoop is a macOS menu bar app for keeping local profile names and Codex env
 
 ## Requirements
 
-- CodexSwoop **1.0.0 (5)**, experimental `v1.0.0-rc.2`, **Apple Silicon arm64 only**.
-- Deployment target **macOS 14.0**; Sonoma runtime acceptance is not performed. Automated checks run on **macOS 27.0.1 (26A434)**; final installer/first-launch acceptance remains untested.
-- Official Codex at **`/Applications/ChatGPT.app`**, with valid OpenAI publisher signature, Bundle ID, Team ID, executable and canonical path. Ordinary updates require no new version allowlist. Last individually tested: **26.1007.21159 (20052)**; other versions show an informational untested notice. Other installation locations remain unsupported for opening.
-- No technical ChatGPT identity verification or guarantee of full authentication isolation. Live Usage is disabled; identity verification and Live Usage are deferred to 1.1.
-- The first DMG contains an **ad hoc-signed** app and is **not notarized**. Read the [installation and Gatekeeper instructions](RELEASE_NOTES_v1.0.0-rc.2.md). RC 2 publication is pending approval.
+- CodexSwoop **1.0.0 (build 15)** / `v1.0.0`, **Apple Silicon arm64 only** (M1 or newer). Download the ZIP and SHA-256 sidecar from the [Release](https://github.com/cbrwvy/codexswoop/releases/tag/v1.0.0).
+- Both executables declare **macOS 14.0** as their minimum. Real two-profile acceptance used **macOS 27.0.1**; CI uses **macOS 15 / Xcode 16.4**. macOS 14 runtime, Intel, VM and clean-machine acceptance are not claimed.
+- Official Codex at **`/Applications/ChatGPT.app`**, with a valid OpenAI publisher signature and coherent installation/ownership evidence. Real acceptance used **26.1007.71326**. Version/build numbers and the older reference-version notice are informational; other locations remain unsupported for opening.
+- No technical ChatGPT identity verification or guarantee of complete authentication isolation. **Live Usage is unavailable**.
+- The app is **ad hoc signed and not notarized**, has **no Developer ID or stapled ticket**, and can be blocked by Gatekeeper. Follow the [installation and checksum instructions](RELEASE_NOTES_v1.0.0.md).
 
 For development builds, use [BUILDING.md](BUILDING.md).
 
@@ -20,7 +20,7 @@ For development builds, use [BUILDING.md](BUILDING.md).
 
 1. Open CodexSwoop. Its controls are in the macOS menu bar.
 2. Select **Add Account** and choose a setup method.
-3. If CodexSwoop reports that Codex is missing or unverified, open Settings and select **Refresh** or **Check Again**. Confirm official Codex is at `/Applications/ChatGPT.app`; a different version alone is not a blocker. A different path, invalid publisher signature or incoherent installation can still block opening. You can prepare local profiles while Codex is absent or unverified.
+3. If CodexSwoop reports that Codex is missing or unverified, open Settings and select **Refresh**. Confirm official Codex is at `/Applications/ChatGPT.app`; a different version alone is not a blocker. A different path, invalid publisher signature or incoherent installation can still block opening. You can prepare local profiles while Codex is absent or unverified.
 4. CodexSwoop does not ask for Accessibility permission automatically. Launch at Login is optional.
 
 ## Use Existing Codex
@@ -52,7 +52,7 @@ Open the profile menu and choose **Open Separately**. CodexSwoop activates the l
 
 Choose **Close Others & Open** only after reviewing the confirmation and the listed instances. CodexSwoop requests normal closure one instance at a time. If an instance cannot be attributed to a linked environment, the operation can stop. Activity can also be **Unknown**; accepting a warning does not turn unknown activity into idle activity. Closing several instances is not atomic, so an operation can be partial.
 
-Cancel if you cannot confirm that it is safe to continue. If an operation has an uncertain result, use **Check Again** before attempting another opening action.
+Cancel if you cannot confirm that it is safe to continue. If a closing operation has an uncertain result, review it and use **Check Again** before another closing attempt. Older opening history does not block Add Account or Open Separately; those actions validate their own current evidence.
 
 ## Removing profiles safely
 

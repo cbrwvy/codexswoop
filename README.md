@@ -8,7 +8,7 @@
 
 <p align="center">A native macOS menu bar app for organizing local profiles and their Codex environments.</p>
 
-<p align="center"><sub>1.0.0-rc.2 · Experimental Pre-release · Apple Silicon arm64 · MIT License</sub></p>
+<p align="center"><sub>1.0.0 · Stable release · Build 15 · Apple Silicon arm64 · MIT License</sub></p>
 
 <p align="center">
   <img src="docs/assets/screenshots/codexswoop-overview.png" alt="CodexSwoop menu bar popover with two fictional profiles" width="480">
@@ -22,7 +22,7 @@ Keep local Codex environments organized under profile names you choose. CodexSwo
 
 A profile name is only a local label and does not verify which ChatGPT account is signed in. Adding, renaming and removing profiles does not require a particular Codex version or a verified Codex installation. Metadata integrity and pending-recovery safeguards still apply.
 
-Local preview build 10 keeps **Add Account** and **Open Separately** available when an older opening operation needs review. Opening validates the current signed GUI and environment, uses the existing operation lock, and leaves other instances running. Old opening history is preserved. **Close Others & Open** retains its confirmation and recovery checks. Find the latest 500 sanitized errors under **Settings → Diagnostics → Open error log**.
+**Add Account** and **Open Separately** perform fresh validation when clicked and remain available when older opening history needs review. Opening leaves other profiles running. **Close Others & Open** retains confirmation and recovery checks. Find the latest 500 sanitized errors under **Settings → Diagnostics → Open error log**.
 
 ## Features
 
@@ -34,7 +34,7 @@ Local preview build 10 keeps **Add Account** and **Open Separately** available w
 
 ## Screenshots
 
-These are off-screen renders of the app's real views using synthetic project fixtures, not recordings of signed-in user accounts.
+These illustrative off-screen renders use synthetic project fixtures. Some captures show earlier UI states; they are not recordings of signed-in user accounts.
 
 <p align="center">
   <img src="docs/assets/screenshots/settings.png" alt="CodexSwoop Settings with language, launch, Codex detection, and Accessibility sections" width="500">
@@ -52,7 +52,20 @@ CodexSwoop stores local profile and environment-reference metadata. The official
 
 ## Installation
 
-The next GitHub Pre-release candidate is **1.0.0 (build 5)**. RC 2 publication is pending approval. See the [RC 2 Release Notes](docs/RELEASE_NOTES_v1.0.0-rc.2.md); the candidate fixes ordinary official Codex updates blocking core functions. Its DMG is explicitly labeled **unnotarized**, is **ad hoc signed**, contains an **ad hoc-signed** app, and has no Developer ID signature. macOS Gatekeeper may block first launch. See the [Release Notes and installation instructions](docs/RELEASE_NOTES_v1.0.0-rc.2.md) before installing. This is an experimental candidate, not a fully validated stable release.
+Download **1.0.0 (build 15)** from the [v1.0.0 Release](https://github.com/cbrwvy/codexswoop/releases/tag/v1.0.0):
+
+- `CodexSwoop-1.0.0-macos-arm64.zip`
+- `CodexSwoop-1.0.0-macos-arm64.zip.sha256`
+
+Place both files in the same directory and verify the checksum:
+
+```sh
+shasum -a 256 -c CodexSwoop-1.0.0-macos-arm64.zip.sha256
+```
+
+Extract the ZIP, move `CodexSwoop.app` to Applications, and open it from there. Its controls appear in the menu bar. Existing build 15 users already have the same production application.
+
+**The app is ad hoc signed, has no Developer ID signature, and is not notarized. No notarization ticket is stapled. Gatekeeper may block first launch; seamless first-launch acceptance is not promised.** Review the macOS Privacy & Security message before deciding whether to allow the app. Do not disable Gatekeeper or remove quarantine attributes. See the [1.0.0 Release Notes](docs/RELEASE_NOTES_v1.0.0.md).
 
 ## Getting Started
 
@@ -74,12 +87,13 @@ See [Security](docs/SECURITY.md) for the project's security boundaries.
 
 ## Compatibility & Limitations
 
-- **Apple Silicon arm64 only** (M1 or newer); Intel is not supported. Deployment target: **macOS 14.0**. Sonoma runtime acceptance has **not** been performed.
-- Automated candidate checks run on **macOS 27.0.1 (26A434)**. This does not establish final installer/first-launch acceptance or compatibility on other macOS versions. VM and clean-machine tests are not performed for this Pre-release.
-- Official Codex at **`/Applications/ChatGPT.app`** is verified by Bundle ID, the OpenAI signing requirement and Team ID, executable, canonical path and current installation/process evidence. Ordinary version/build changes do not block core functions. **26.1007.21159 (20052)** remains the last individually tested version; newer versions are shown as informationally untested. Detection alone does not establish trust.
-- ChatGPT account identity is **not technically verified**. Full authentication isolation is **not guaranteed**. Verify the signed-in account yourself inside Codex.
-- **Live Usage is disabled**. Live Usage and technical identity verification are deferred to 1.1.
-- The first DMG uses an **ad hoc app signature**, has **no Developer ID**, and is **not notarized**. Gatekeeper acceptance is not claimed.
+- **Apple Silicon arm64 only** (M1 or newer). The app and recovery helper declare **macOS 14.0** as their minimum; macOS 14 runtime acceptance has not been performed. Intel is not supported by the downloadable artifact.
+- Real acceptance used **macOS 27.0.1** and official **Codex 26.1007.71326**: two profile windows, separate opening, normal closure of the second profile while retaining the first, reopening, repeated activation and context menus. Automated CI runs on **macOS 15 / Xcode 16.4**. Clean-machine and VM acceptance are not claimed.
+- Official Codex must be at **`/Applications/ChatGPT.app`** and pass publisher, canonical-path and environment-ownership checks. Version/build numbers and the app's older reference-version notice are informational; an update can still introduce untested behavior.
+- ChatGPT account identity is **not technically verified**. Full authentication isolation is **not guaranteed**. Verify the signed-in account yourself inside Codex. **Live Usage is unavailable**.
+- A cold launch can log an ownership-readiness or process-change diagnostic while its window starts. In real acceptance, the window opened and subsequent ownership observation and activation succeeded.
+- Unknown ownership or an uncertain closing operation can require manual review. Closing several instances is sequential and can be partial; save work before confirming.
+- The ZIP contains an **ad hoc-signed, non-notarized** application, with **no Developer ID or stapled ticket**. Gatekeeper acceptance is not claimed.
 
 ## Documentation
 

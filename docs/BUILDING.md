@@ -1,12 +1,12 @@
 # Building CodexSwoop
 
-The Swift package and shared Xcode project/scheme are the build authorities. The application is **1.0.0 (build 8)**, Swift language mode 6, deployment target **macOS 14.0**. The experimental distribution is **Apple Silicon arm64 only**. Building another architecture does not establish supported runtime compatibility.
+The Swift package and shared Xcode project/scheme are the build authorities. The application is **1.0.0 (build 15)**, Swift language mode 6, deployment target **macOS 14.0**. The release artifact is **Apple Silicon arm64 only**. Building another architecture does not establish supported runtime compatibility.
 
 No account credentials, official Codex launch or installation is needed to compile or run the automated suites. Use disposable fixtures for tests; do not point test storage at real account data.
 
-## RC 2 toolchain
+## Toolchains
 
-Automated validation ran on **macOS 27.0.1 (26A434)** with **Xcode 27.1 (27A9275)**, **Apple Swift 6.4**, and **macOS SDK 27.0**. Sonoma runtime acceptance has not been performed. Remote CI uses a separate macOS 15 / Xcode 16.4 lane; local RC acceptance does not establish remote CI success.
+Automated validation ran on **macOS 27.0.1 (26A434)** with **Xcode 27.1 (27A9275)**, **Apple Swift 6.4**, and **macOS SDK 27.0**. Sonoma runtime acceptance has not been performed. Remote CI uses a separate macOS 15 / Xcode 16.4 lane; local acceptance does not establish remote CI success.
 
 Select Xcode per command without changing the global developer directory:
 
@@ -22,7 +22,7 @@ The native workflow can also be run independently:
 ./scripts/check-xcode.sh
 ```
 
-It runs XCTest, universal native Debug/Release builds and an unsigned Archive. Separate disposable QA copies receive verified local ad hoc signatures. These QA products are not the distributed RC and do not establish Intel runtime support.
+It runs XCTest, universal native Debug/Release builds and an unsigned Archive. Separate disposable QA copies receive verified local ad hoc signatures. These QA products are not release assets and do not establish Intel runtime support.
 
 ## Local builds
 
@@ -56,6 +56,8 @@ UI rendering uses synthetic data. Optional accessibility/menu-bar variants requi
 
 ## Packaging
 
-See [Distribution](DISTRIBUTION.md) for the experimental `local-preview` workflow and the separate strict `public-release` workflow. The experimental RC app and DMG are ad hoc signed and not notarized. Strict public-release mode continues to require Developer ID, Hardened Runtime, secure timestamps, notarization/stapling and Gatekeeper acceptance.
+The stable 1.0.0 release reuses the verified build 15 ZIP produced from the accepted main commit. The release source adds only a test synchronization fix and documentation; production sources, resources, package/project configuration and build scripts are unchanged. No artifact rebuild is needed for those changes.
 
-[RC 2 validation](RC_2_VALIDATION.md) records the exact source fingerprint, artifact checksums, test counts and remaining acceptance limits. No VM or clean-machine testing is claimed for this Pre-release.
+See [Distribution](DISTRIBUTION.md) for ZIP verification and provenance. This release is ad hoc signed and not notarized. The separate strict DMG `public-release` mode continues to require Developer ID, Hardened Runtime, secure timestamps, notarization/stapling and Gatekeeper acceptance.
+
+[RC 2 validation](RC_2_VALIDATION.md) retains historical candidate evidence. Current release behavior and acceptance limits are described in the [1.0.0 Release Notes](RELEASE_NOTES_v1.0.0.md).

@@ -12,17 +12,17 @@ Removing a profile removes its record and active link, without deleting underlyi
 
 ## Opening and activity boundaries
 
-Environment-scoped opening actions require current path, publisher signature, Team ID, executable, process-generation and environment-ownership checks. Closing other instances also requires explicit confirmation. Open-only actions and local AccountSetup transactions serialize through the existing operation lock without settling or replacing older opening history. Official Codex at **`/Applications/ChatGPT.app`** is admitted independently of version/build numbers. Last individually tested: **26.1007.21159 (20052)**. Metadata alone never establishes signature trust. Local profile creation/rename/removal does not require an installed or verified Codex app; metadata integrity and pending-operation protections still apply.
+Environment-scoped opening actions require current path, publisher signature, Team ID, executable, process-generation and environment-ownership checks. Closing other instances also requires explicit confirmation. Open-only actions and local AccountSetup transactions serialize through the existing operation lock without settling or replacing older opening history. Official Codex at **`/Applications/ChatGPT.app`** is admitted independently of version/build numbers. Real two-profile acceptance used **26.1007.71326**; the in-app older reference-version notice is informational. Metadata alone never establishes signature trust. Local profile creation/rename/removal does not require an installed or verified Codex app; metadata integrity and pending-operation protections still apply.
 
 Unknown activity is not idle. Unknown process ownership can block an operation. **Close Others & Open** requests normal closure sequentially and can complete partially. An uncertain outcome requires review; users must save work and review affected instances before confirming. Production safety gates are retained. Do not bypass them to force an unsupported installation or ambiguous process through.
 
 Technical account identity verification and **Live Usage are unavailable** and deferred to 1.1. Manual visual confirmation inside Codex does not unlock technical verification or Usage.
 
-## Experimental distribution
+## Distribution
 
-Version **1.0.0 (5)** / **v1.0.0-rc.2** is an experimental Pre-release for Apple Silicon arm64. The deployment target is macOS 14.0; Sonoma runtime acceptance has not been performed. Automated checks ran on macOS 27.0.1 (26A434). Installation/first-launch, VM and clean-machine acceptance are not claimed.
+Stable **1.0.0 (build 15)** / **v1.0.0** is distributed as an **Apple Silicon arm64 ZIP** with a separate SHA-256 file. Both executables declare a macOS 14.0 minimum. Real two-profile acceptance used macOS 27.0.1 and Codex 26.1007.71326; CI uses macOS 15 / Xcode 16.4. macOS 14 runtime, Intel, VM and clean-machine acceptance are not claimed.
 
-Both the application and DMG have **ad hoc signatures**, with **no Developer ID or notarization**. Gatekeeper may block first launch. Verify the published SHA-256 and follow the [Release Notes](RELEASE_NOTES_v1.0.0-rc.2.md). Do not disable Gatekeeper or remove quarantine attributes. The separate strict public-release mode retains Developer ID, notarization, stapling and Gatekeeper checks.
+The application and bundled helper are **ad hoc signed**, with **no Developer ID, notarization or stapled ticket**. A valid local signature is not verified publisher identity. Gatekeeper may block first launch. Verify the published SHA-256 and follow the [Release Notes](RELEASE_NOTES_v1.0.0.md). Do not disable Gatekeeper or remove quarantine attributes. The separate strict DMG distribution mode retains its Developer ID, notarization, stapling and Gatekeeper checks.
 
 ## Reports and repository hygiene
 

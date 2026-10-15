@@ -1,63 +1,36 @@
 # CodexSwoop Distribution
 
-## Experimental first GitHub Pre-release
+## Stable 1.0.0
 
-Approved candidate: **1.0.0 (build 5)**, tag **`v1.0.0-rc.2`**. The artifact is **`CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg`**. It contains an **ad hoc-signed** app, has no Developer ID signature, and is **not notarized**. It is an experimental Pre-release, not an accepted stable release. The release is explicitly marked as a GitHub Pre-release, with Latest disabled.
+**Application 1.0.0, build 15**, tag **`v1.0.0`**. Download from the [public Release](https://github.com/cbrwvy/codexswoop/releases/tag/v1.0.0):
 
-Apple Silicon **arm64 only** (M1 or newer). The deployment target is **macOS 14.0**, but Sonoma runtime acceptance is **not performed**. Automated checks run on **macOS 27.0.1 (26A434)**. Final installer/first-launch acceptance, VM and clean-machine testing are not performed. Official Codex at **`/Applications/ChatGPT.app`** must pass the OpenAI signature/Team ID, Bundle ID, executable, canonical path and live ownership checks. Version/build numbers are informational and are not an allowlist. Last individually tested: **26.1007.21159 (20052)**. ChatGPT identity is not technically verified, full authentication isolation is not guaranteed, and Live Usage is disabled. Identity verification and Live Usage are deferred to 1.1.
+- `CodexSwoop-1.0.0-macos-arm64.zip`
+- `CodexSwoop-1.0.0-macos-arm64.zip.sha256`
 
-See [Release Notes](RELEASE_NOTES_v1.0.0-rc.2.md) for user installation, Gatekeeper warnings, limitations and bug reports, and [RC evidence](RC_2_VALIDATION.md) for exact hashes and checks.
+The app and recovery helper are **Apple Silicon arm64 only** (M1 or newer), **ad hoc signed**, and **not notarized**. There is **no Developer ID signature or stapled ticket**. macOS Gatekeeper may block first launch; seamless Gatekeeper acceptance is not promised. No Gatekeeper setting or quarantine attribute is changed by this release workflow.
 
-## Existing local-preview workflow
+Both executables declare a macOS **14.0** minimum. Real two-profile acceptance used macOS **27.0.1** and official Codex **26.1007.71326**. Automated CI uses macOS **15 / Xcode 16.4**. macOS 14 runtime, Intel, clean-machine and VM acceptance are not claimed. See [Release Notes](RELEASE_NOTES_v1.0.0.md) for features, installation, authentication boundaries and known limitations.
 
-The packager accepts a prebuilt app and never rewrites version/build metadata or builds it. The RC uses this existing experimental workflow without changing its validation or the separate public-release mode:
+## Artifact verification and provenance
 
-```sh
-./scripts/build-app.sh release arm64
-./scripts/package-release-dmg.sh \
-  --mode local-preview \
-  --app build/release-arm64/CodexSwoop.app \
-  --expected-version 1.0.0 \
-  --output-dir build/rc2
+The release reuses the already verified build 15 produced from `5ca7c8d17a25f967563dba0a50254a7e65689de3`. The final tag adds only test synchronization and documentation changes. Production sources, resources, package/project configuration and build scripts remain identical. The ZIP is copied without changing its bytes; only the filename and the filename-bearing checksum sidecar change.
+
+SHA-256:
+
+```text
+b0b64489141418e56e7eb6731b48980c24d000f4e31e76fa81b2e6405f9b214c
 ```
 
-The workflow produces `CodexSwoop-1.0.0-macos-arm64-local-preview.dmg` and its SHA-256 sidecar. For this owner-approved experimental Pre-release, label the completed image explicitly, ad hoc sign the container, regenerate the filename-bearing sidecar, and validate it again:
+Verify after download:
 
 ```sh
-mv build/rc2/CodexSwoop-1.0.0-macos-arm64-local-preview.dmg \
-  build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg
-codesign --sign - --timestamp=none \
-  build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg
-codesign --verify --strict --verbose=2 \
-  build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg
-(cd build/rc2 && shasum -a 256 \
-  CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg \
-  > CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg.sha256)
-./scripts/validate-release-artifact.sh \
-  --dmg build/rc2/CodexSwoop-1.0.0-rc.2-macos-arm64-unnotarized.dmg \
-  --mode local-preview --expected-version 1.0.0
+shasum -a 256 -c CodexSwoop-1.0.0-macos-arm64.zip.sha256
 ```
 
-The old filename's sidecar is intermediate evidence, not a release asset. The local-preview CLI warning describes its lack of notarized public-release acceptance. This explicitly labeled experimental Pre-release does not acquire public-release validation status. Both the DMG container and enclosed app are ad hoc signed; neither has Developer ID or notarization.
+Release validation covers the ZIP CRC and allowed top-level contents, extracted app/version/build, both arm64 Mach-O executables and their minimum OS stamps, deep/strict code signatures, and byte equality with the accepted bundle. Public release assets are downloaded again to verify their SHA-256 against the original. No user environments, installed app, or official Codex processes are changed for publication.
 
-The validator reads every nested Mach-O's architecture, macOS platform and exact 14.0 deployment target. It verifies bundle metadata, mandatory resources, deep/strict app signature, image integrity, read-only mounted contents, the absolute `/Applications` symlink, and checksum. The exact allowlist permits only the app, Applications link, generated PNG background and optional nonempty regular `.DS_Store`. Unknown bundle resources are rejected. The app includes Info.plist, executable, icon resources and signature seal only; localization is compiled into the executable.
+## Separate notarized DMG workflow
 
-No Gatekeeper setting is changed and no quarantine attribute is removed. Local-preview does not claim Gatekeeper acceptance, Developer ID, secure timestamp, notarization or stapling.
+The existing packager's strict `public-release` mode continues to require Developer ID Application signing, Hardened Runtime, secure timestamps, notarization/stapling and Gatekeeper validation. No signing credentials are used for the 1.0.0 ad hoc ZIP. Its stable GitHub release status does not claim those signing or clean-machine acceptance gates.
 
-## Strict public-release mode — unchanged
-
-The separate `public-release` mode remains fixed to version 1.0.0 and `CodexSwoop-1.0.0-macos-arm64.dmg`. It requires a Developer ID Application identity and externally configured notarytool Keychain profile. It signs a staged app with Hardened Runtime and secure timestamp, submits and staples it, signs/notarizes/staples the DMG, and validates Developer ID authority, Team Identifier, timestamp, runtime flag, stapling, Gatekeeper, contents and checksum. Ad hoc signatures are rejected in this mode. No signing credentials are used for the experimental RC.
-
-```sh
-# Future separate owner-authorized operation only:
-./scripts/package-release-dmg.sh \
-  --mode public-release --app path/to/CodexSwoop.app \
-  --identity "Developer ID Application: Example Organization (TEAMID)" \
-  --notary-profile "CodexSwoop-notary"
-```
-
-The existing `scripts/package-dmg.sh` is a separate development tool and is not used for this RC.
-
-## DMG presentation
-
-The generated background preserves the approved charcoal `#17191D` and coral `#FF5A36` palette, arrow, `Drag to Applications` instruction and `local-preview - not notarized` label. The packager does not synthesize Finder `.DS_Store` placement. Automatic content validation does not establish Finder background visibility or icon positioning; manual Finder presentation acceptance remains unperformed for this RC. README design and approved screenshots are preserved.
+Historical [RC 2 notes](RELEASE_NOTES_v1.0.0-rc.2.md) and [validation](RC_2_VALIDATION.md) describe the older experimental DMG; they are retained as historical evidence.

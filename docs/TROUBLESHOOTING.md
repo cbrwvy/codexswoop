@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Applies to experimental **1.0.0 (5)** / `v1.0.0-rc.2`: Apple Silicon arm64 only, deployment target macOS 14.0 (Sonoma runtime acceptance not performed). Automated checks run on macOS 27.0.1 (26A434); final installer/first-launch acceptance is untested. Official Codex at `/Applications/ChatGPT.app` is checked dynamically by publisher signature and installation/process evidence. Ordinary version/build updates are accepted without a CodexSwoop update. Last individually tested: **26.1007.21159 (20052)**; newer versions are informationally untested. Other installation paths remain unsupported for opening. The app is ad hoc signed and not notarized. Technical ChatGPT identity verification is absent, full authentication isolation is not guaranteed, and Live Usage is disabled (identity/Usage deferred to 1.1). See [Release Notes](RELEASE_NOTES_v1.0.0-rc.2.md) for installation and Gatekeeper guidance.
+Applies to stable **1.0.0 (build 15)** / `v1.0.0`, distributed for Apple Silicon arm64. Both executables declare macOS 14.0 as their minimum. Real two-profile acceptance used macOS 27.0.1 and official Codex **26.1007.71326**; automated CI uses macOS 15 / Xcode 16.4. macOS 14 runtime, Intel, clean-machine and VM acceptance are not claimed. Official Codex at `/Applications/ChatGPT.app` must pass current publisher, installation and environment-ownership checks. Version/build numbers and the older reference-version notice are informational. The app is **ad hoc signed and not notarized**, with no Developer ID or stapled ticket; Gatekeeper may block first launch. Technical ChatGPT identity verification and full authentication isolation are not guaranteed. Live Usage is unavailable. See [Release Notes](RELEASE_NOTES_v1.0.0.md) for installation and limitations.
 
 ## Codex installation not detected
 
@@ -8,13 +8,13 @@ Open Settings and select **Refresh**. Confirm official Codex is at **`/Applicati
 
 ## Codex updated
 
-A new version/build is informational and does not require a new CodexSwoop release or compatibility allowlist. RC 2 verifies the current official publisher and installation dynamically. Select Refresh if the installation was changing while it was checked. You can add, rename and remove local profiles while opening is unavailable, subject to metadata integrity and pending-operation protections.
+A new version/build is informational and does not require a new CodexSwoop release or compatibility allowlist. CodexSwoop verifies the current official publisher and installation dynamically. Select Refresh if the installation was changing while it was checked. You can add, rename and remove local profiles while opening is unavailable, subject to metadata integrity and pending-operation protections.
 
 If an older process remains running after the app on disk was replaced, CodexSwoop checks its live signature, generation and environment ownership independently. When macOS cannot provide coherent evidence, an opening/closing action stops rather than guessing. Review and save work in official Codex yourself; do not bypass ownership checks or clear recovery files. An update cannot silently settle a previous unfinished operation.
 
 ## Opening is blocked
 
-Read the message beside the profile and in Settings. Recheck that the profile is linked and the Codex installation is verified. A profile label or manual confirmation does not verify the signed-in ChatGPT account. Some account-switching and window-specific features remain unavailable in this pre-release build.
+Open **Settings → Diagnostics → Open error log** and check the saved environment link. Recheck that the Codex installation is verified. A profile label or manual confirmation does not verify the signed-in ChatGPT account. Technical account identity verification and Live Usage remain unavailable in 1.0.0.
 
 If CodexSwoop reports unknown ownership, a changed environment, unverifiable signature/installation evidence, or a previous operation needing review, stop and follow that message. Do not repeat the action to force it through.
 
