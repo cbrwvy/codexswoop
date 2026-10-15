@@ -124,6 +124,59 @@ final class OpeningSafetyTests: XCTestCase {
         AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(bootSession: { "synthetic-boot" },
             store: ProfileStore(root: f.validator.managedRoot), validator: f.validator, system: f.system, openingJournal: journal))
     }
+    func testIndependentOpeningPreservesPendingAndOtherRunningProfile() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot(), running: false)
+        let record = try await pendingRecord(f)
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        try journal.begin(record); try journal.append(.launch, operation: record.id); journal.abandon()
+        let names = ["opening-journal.json", "opening-journal-watermark.json"]
+        let before = try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }
+        let other = await f.system.instances[f.associations[0].environmentID]
+        let driver = DesktopSwitchingDriver(store: f.store, validator: f.validator, system: f.system, independentOpeningAllowed: true)
+        let coordinator = AccountSwitchingCoordinator(driver: driver)
+        _ = try await coordinator.refreshOpeningRecovery()
+        for _ in 0..<2 {
+            try await coordinator.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
+        }
+        let effects = await f.system.effects, retained = await f.system.instances[f.associations[0].environmentID]
+        XCTAssertEqual(effects, ["launch", "activate", "activate"])
+        XCTAssertEqual(retained, other)
+        XCTAssertEqual(try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }, before)
+        do {
+            try await coordinator.openAccount(to: f.profiles[1], mode: .closeOthersAndOpen, environmentScoped: true)
+            XCTFail("Closing other processes must still require settlement of old history")
+        } catch { XCTAssertEqual(error as? SwitchingError, .opening(.recoveryRequired)) }
+    }
+    func testIndependentFailedActivationAllowsFreshObservedAttemptWithoutPending() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let coordinator = AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(
+            store: f.store, validator: f.validator, system: f.system, independentOpeningAllowed: true))
+        await f.system.configure(activation: true)
+        do {
+            try await coordinator.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
+            XCTFail("Native failure must be returned")
+        } catch { XCTAssertEqual(error as? SwitchingError, .activationFailed) }
+        XCTAssertNil(try OpeningOperationJournal(root: f.validator.managedRoot).pending())
+        await f.system.configure()
+        try await coordinator.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
+        let result = await coordinator.openingResult
+        XCTAssertEqual(result, .activatedExisting(f.profiles[1].id))
+    }
+    func testAdditiveSetupPreservesPendingButRespectsActiveOperationLease() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let record = try await pendingRecord(f), journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        try journal.begin(record)
+        do { _ = try await f.store.previewNewAccount(name: "Concurrent", managed: true, validator: f.validator); XCTFail("Concurrent opening must serialize") }
+        catch { XCTAssertEqual(error as? OpeningJournalError, .busy) }
+        journal.abandon()
+        let names = ["opening-journal.json", "opening-journal-watermark.json"]
+        let before = try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }
+        let preview = try await f.store.previewNewAccount(name: "Independent new profile", managed: true, validator: f.validator)
+        guard case let .committed(state) = try await f.store.commitAccountSetup(preview) else { return XCTFail("Creation failed") }
+        XCTAssertEqual(state.profiles.profiles.count, 3)
+        XCTAssertTrue(state.profiles.profiles.contains(f.profiles[0]))
+        XCTAssertEqual(try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }, before)
+    }
     func testRestartRestoresSubmittedActivationAndCheckAgainNeverReplays() async throws {
         let f = try await ReleaseFixture.make(root: qaRoot()), intent = try await pendingRecord(f)
         let journal = OpeningOperationJournal(root: f.validator.managedRoot)
@@ -207,7 +260,7 @@ final class OpeningSafetyTests: XCTestCase {
         await f.system.removeSyntheticInstance(f.associations[1].environmentID)
         let recovered = restartedCoordinator(f); _ = try await recovered.refreshOpeningRecovery()
         do { try await recovered.reconcileOpeningRecovery(); XCTFail("New boot cleared warning") }
-        catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryRequired) }
+        catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryBootChanged) }
         XCTAssertNotNil(try journal.pending())
     }
     func testInvalidAndFutureJournalRemainBlockedAndUnmodified() async throws {
@@ -286,6 +339,25 @@ final class OpeningSafetyTests: XCTestCase {
         catch { XCTAssertEqual(error as? EnvironmentError, .incompatibleBuild) }
         XCTAssertEqual(try journal.pending()?.buildFingerprint, intent.buildFingerprint)
     }
+    func testSignedSameGUIRecoveryAllowsFreshOwnedHelperTree() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let old = await f.system.instances[f.associations[1].environmentID]!
+        let main = DesktopGeneration(pid: old.main.pid, uid: getuid(), started: old.main.started, startTimeMicroseconds: 10_000_001)
+        let signature = CodexSigningIdentity(identifier: CodexBundleInspector.bundleIdentifier, teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let receiver = DesktopInstance(main: main, related: [main], nativeLaunchDate: old.nativeLaunchDate, signingIdentity: signature)
+        await f.system.setSyntheticInstance(f.associations[1].environmentID, receiver)
+        let intent = try await pendingRecord(f), journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        try journal.begin(intent); try journal.append(.activation(receiver), operation: intent.id); journal.abandon()
+        let child = DesktopGeneration(pid: main.pid + 10, uid: getuid(), started: "fresh helper", startTimeMicroseconds: 10_000_002)
+        await f.system.setSyntheticInstance(f.associations[1].environmentID,
+            DesktopInstance(main: main, related: [main, child], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature))
+        let recovered = restartedCoordinator(f); _ = try await recovered.refreshOpeningRecovery()
+        try await recovered.reconcileOpeningRecovery()
+        XCTAssertNil(try journal.pending())
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty, "Read-only settlement grants no native effect")
+    }
     func testSameSecondPIDReuseAndChildGenerationChangeRemainUnresolved() async throws {
         for childOnly in [false, true] {
             let f = try await ReleaseFixture.make(root: qaRoot())
@@ -302,7 +374,7 @@ final class OpeningSafetyTests: XCTestCase {
                 DesktopInstance(main: changedMain, related: [changedMain, changedChild], nativeLaunchDate: original.nativeLaunchDate))
             let recovered = restartedCoordinator(f); _ = try await recovered.refreshOpeningRecovery()
             do { try await recovered.reconcileOpeningRecovery(); XCTFail("Same-second replacement accepted") }
-            catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryRequired) }
+            catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryTargetChanged) }
             XCTAssertNotNil(try journal.pending())
         }
     }

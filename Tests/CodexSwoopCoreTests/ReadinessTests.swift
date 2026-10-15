@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import Darwin
 @testable import CodexSwoopCore
 
@@ -9,7 +10,403 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
     }
 }
 
+private actor StartupOwnershipSamples {
+    var samples: [Result<DesktopObservation, EnvironmentError>]
+    var calls = 0
+    init(_ samples: [Result<DesktopObservation, EnvironmentError>]) { self.samples = samples }
+    func next(_ timeout: Duration) throws -> DesktopObservation {
+        precondition(timeout > .zero && timeout <= .seconds(5))
+        calls += 1
+        return try (samples.count > 1 ? samples.removeFirst() : samples[0]).get()
+    }
+}
+
+private actor InventorySamples {
+    var remaining: Int
+    init(_ remaining: Int) { self.remaining = remaining }
+    func read(_ timeout: Duration) throws -> DesktopInstanceInventory {
+        if remaining > 0 { remaining -= 1; throw EnvironmentError.processChanged }
+        return DesktopInstanceInventory(entries: [], unknownCount: 0)
+    }
+}
+
+@MainActor final class P0LaunchTests: XCTestCase {
+    private func fixture(running: Bool = false) async throws -> ReleaseFixture {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-p0-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return try await ReleaseFixture.make(root: root, running: running)
+    }
+    private func aliasRoot(_ fixture: ReleaseFixture) -> URL {
+        let root = URL(fileURLWithPath: "/private/tmp/csp0-" + UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return root
+    }
+    func testExitingOwnedQAProcessRetainsKernelGenerationUntilReaped() async throws {
+        // Only this test's spawned child. No native application or account state.
+        var child: pid_t = 0
+        var arguments: [UnsafeMutablePointer<CChar>?] = [strdup("/bin/sleep"), strdup("0.5"), nil]
+        var environment: [UnsafeMutablePointer<CChar>?] = [nil]
+        defer { for argument in arguments { free(argument) } }
+        let launched = arguments.withUnsafeMutableBufferPointer { argv in
+            environment.withUnsafeMutableBufferPointer { env in
+                posix_spawn(&child, "/bin/sleep", nil, nil, argv.baseAddress!, env.baseAddress!)
+            }
+        }
+        guard launched == 0 else { throw POSIXError(POSIXErrorCode(rawValue: launched) ?? .EAGAIN) }
+        defer { var status: Int32 = 0; _ = waitpid(child, &status, 0) }
+        let original = try DesktopProcessMetadata.read(child).preciseGeneration()
+        XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(original), true)
+        let reused = DesktopGeneration(pid: child, uid: original.uid, started: original.started,
+            startTimeMicroseconds: original.startTimeMicroseconds! + 1)
+        XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(reused), false, "Same PID with another precise start must fail")
+        let foreign = DesktopGeneration(pid: child, uid: original.uid + 1, started: original.started,
+            startTimeMicroseconds: original.startTimeMicroseconds)
+        XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(foreign), false)
+        try await Task.sleep(for: .milliseconds(600))
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, child]
+        var record = kinfo_proc(), size = MemoryLayout<kinfo_proc>.size
+        XCTAssertEqual(sysctl(&mib, u_int(mib.count), &record, &size, nil, 0), 0)
+        XCTAssertEqual(size, MemoryLayout<kinfo_proc>.size)
+        XCTAssertEqual(record.kp_proc.p_stat, 5, "The QA child remains a real unreaped zombie, never treated as absent")
+        // Darwin may withhold proc_pidinfo for zombies. Unreadable identity is not
+        // proof of PID reuse or exit; the wait still sees the PID until it is reaped.
+        XCTAssertNotEqual(DesktopProcessMetadata.kernelGenerationMatches(original), false)
+        let incomplete = DesktopGeneration(pid: child, uid: original.uid, started: original.started)
+        XCTAssertNotEqual(incomplete, original, "The former ps-only comparison wrongly rejects the same exiting PID")
+    }
+    func testStrictInventoryCanSettleAfterExitWithoutRepeatingAnEffect() async throws {
+        let samples = InventorySamples(1)
+        let result = try await DesktopReadiness.inventory(timeout: .seconds(1), interval: .milliseconds(1)) {
+            try await samples.read($0)
+        }
+        XCTAssertTrue(result.entries.isEmpty)
+        let neverReady = InventorySamples(1_000)
+        do {
+            _ = try await DesktopReadiness.inventory(timeout: .milliseconds(10), interval: .milliseconds(1)) { try await neverReady.read($0) }
+            XCTFail("Unstable inventory accepted")
+        } catch { XCTAssertEqual(error as? EnvironmentError, .processChanged) }
+        do {
+            _ = try await DesktopReadiness.inventory { _ in throw EnvironmentError.incompatibleBuild }
+            XCTFail("Invalid signature/build retried as readiness")
+        } catch { XCTAssertEqual(error as? EnvironmentError, .incompatibleBuild) }
+        let unknown = try await DesktopReadiness.inventory { _ in DesktopInstanceInventory(entries: [], unknownCount: 1) }
+        XCTAssertThrowsError(try unknown.validate(), "Unknown GUI remains a blocker")
+    }
+    func testCloseOthersWithZeroOthersAllowsLaunchedReceiverTreeGrowth() async throws {
+        let f = try await fixture()
+        await f.system.removeSyntheticInstance(f.associations[0].environmentID)
+        await f.system.configureLaunchedTreeGrowth()
+        try await f.open(.closeOthersAndOpen)
+        let effects = await f.system.effects, state = await f.coordinator.state
+        XCTAssertEqual(effects, ["launch", "activate"])
+        XCTAssertEqual(state, .environmentOpened(f.profiles[1].id))
+        XCTAssertNil(try OpeningOperationJournal(root: f.validator.managedRoot).pending())
+        let current = await f.system.instances[f.associations[1].environmentID]
+        XCTAssertEqual(current?.main.startTimeMicroseconds, 100)
+        XCTAssertEqual(current?.related.count, 2)
+    }
+    func testReceiverContinuityRejectsSamePIDWithDifferentGenerationDateOrSignature() throws {
+        let generation = DesktopGeneration(pid: 190_010, uid: getuid(), started: "synthetic-launch", startTimeMicroseconds: 100)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let receiver = DesktopInstance(main: generation, related: [generation], nativeLaunchDate: Date().addingTimeInterval(-1), signingIdentity: signature)
+        let child = DesktopGeneration(pid: 190_050, uid: getuid(), started: "child", startTimeMicroseconds: 200)
+        let grown = DesktopInstance(main: generation, related: [generation, child], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature)
+        XCTAssertNotEqual(receiver, grown, "Full snapshots remain distinct for quit/recovery evidence")
+        XCTAssertTrue(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: true))
+        XCTAssertFalse(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: false))
+        XCTAssertTrue(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: false, allowChildChanges: true))
+        let changed = DesktopGeneration(pid: generation.pid, uid: generation.uid, started: generation.started, startTimeMicroseconds: 101)
+        for bad in [DesktopInstance(main: changed, related: [changed], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature),
+                    DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate.addingTimeInterval(1), signingIdentity: signature),
+                    DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate,
+                        signingIdentity: CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier, codeDirectoryHash: String(repeating: "c", count: 40))),
+                    DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate)] {
+            XCTAssertFalse(DesktopOpeningTarget.matches(bad, expected: receiver, newlyLaunched: true))
+        }
+        let incomplete = DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate)
+        XCTAssertFalse(DesktopOpeningTarget.matches(grown, expected: incomplete, newlyLaunched: true))
+    }
+    func testClosingRecheckAcceptsFreshOwnedHelpersButRejectsReplacedGUI() async throws {
+        let f = try await fixture(running: true)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        for (index, a) in f.associations.enumerated() {
+            let g = DesktopGeneration(pid: 190_000 + Int32(index), uid: getuid(), started: "synthetic", startTimeMicroseconds: UInt64(index + 1))
+            await f.system.setSyntheticInstance(a.environmentID, DesktopInstance(main: g, related: [g], nativeLaunchDate: Date(), signingIdentity: signature))
+        }
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let plan = try await driver.planEnvironmentAccount(profile: f.profiles[1], mode: .closeOthersAndOpen)
+        for a in f.associations {
+            let old = await f.system.instances[a.environmentID]!
+            let child = DesktopGeneration(pid: old.main.pid + 1_000, uid: getuid(), started: "helper", startTimeMicroseconds: 10)
+            await f.system.setSyntheticInstance(a.environmentID, DesktopInstance(main: old.main, related: [old.main, child], nativeLaunchDate: old.nativeLaunchDate, signingIdentity: signature))
+        }
+        try await driver.recheckOpening(plan, remaining: plan.others)
+        let original = plan.others[0].instance
+        let replaced = DesktopGeneration(pid: original.main.pid, uid: original.main.uid, started: original.main.started, startTimeMicroseconds: 999)
+        await f.system.setSyntheticInstance(plan.others[0].association.environmentID,
+            DesktopInstance(main: replaced, related: [replaced], nativeLaunchDate: original.nativeLaunchDate, signingIdentity: signature))
+        do { try await driver.recheckOpening(plan, remaining: plan.others); XCTFail("Replaced GUI accepted for termination") }
+        catch { XCTAssertEqual(error as? AccountOpeningError, .processChanged) }
+        let effects = await f.system.effects
+        XCTAssertTrue(effects.isEmpty, "Read-only checks never dispatch effects")
+    }
+    func testStageMarkerRoundTripsAndLegacyFailureStillDecodes() throws {
+        let value = OpeningFailureRecord(.opening(.processChanged), stage: .activationScopeInventory)
+        let restored = try JSONDecoder().decode(OpeningFailureRecord.self, from: JSONEncoder().encode(value))
+        XCTAssertEqual(restored.stage, .activationScopeInventory)
+        XCTAssertEqual(restored.error, .opening(.processChanged))
+        let legacy = try JSONDecoder().decode(OpeningFailureRecord.self, from: Data(#"{"reason":"processChanged"}"#.utf8))
+        XCTAssertNil(legacy.stage)
+    }
+    func testRealGenerationChangeAfterLaunchPreservesPendingAcrossRestart() async throws {
+        let f = try await fixture()
+        await f.system.removeSyntheticInstance(f.associations[0].environmentID)
+        await f.system.configureLaunchedTreeGrowth(replaceGeneration: true)
+        do { try await f.open(.closeOthersAndOpen); XCTFail("Same PID replacement accepted") }
+        catch { XCTAssertEqual(error as? SwitchingError, .opening(.processChanged)) }
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot), record = try XCTUnwrap(journal.pending())
+        XCTAssertEqual(record.launchReceiver?.main.startTimeMicroseconds, 100)
+        XCTAssertEqual(record.failure?.stage, .driverPostflightTarget)
+        XCTAssertEqual(record.failure?.reason, .processChanged)
+        let names = ["opening-journal.json", "opening-journal-watermark.json"]
+        let before = try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }
+        let restarted = AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(bootSession: { "synthetic-boot" },
+            store: f.store, validator: f.validator, system: f.system))
+        let review = try await restarted.refreshOpeningRecovery()
+        XCTAssertTrue(review)
+        XCTAssertEqual(try journal.pending(), record)
+        XCTAssertEqual(try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }, before)
+        let effects = await f.system.effects
+        XCTAssertEqual(effects, ["launch", "activate"], "Startup neither retries nor reconciles")
+    }
+    func testNewTargetInventoryContinuityKeepsUnknownAndForeignOwnershipBlocked() async throws {
+        let f = try await fixture()
+        let main = DesktopGeneration(pid: 190_010, uid: getuid(), started: "synthetic-launch", startTimeMicroseconds: 100)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let old = DesktopInstance(main: main, related: [main], nativeLaunchDate: Date().addingTimeInterval(-1), signingIdentity: signature)
+        let child = DesktopGeneration(pid: 190_050, uid: getuid(), started: "child", startTimeMicroseconds: 200)
+        let fresh = DesktopInstance(main: main, related: [main, child], nativeLaunchDate: old.nativeLaunchDate, signingIdentity: signature)
+        let expected = DesktopInventoryEntry(association: f.associations[1], instance: old)
+        let inventory = DesktopInstanceInventory(entries: [DesktopInventoryEntry(association: f.associations[1], instance: fresh)], unknownCount: 0)
+        try inventory.validate()
+        XCTAssertTrue(DesktopOpeningTarget.confirms(inventory, expected: [expected], launchedTarget: expected))
+        XCTAssertFalse(DesktopOpeningTarget.confirms(inventory, expected: [expected], launchedTarget: nil))
+        let foreign = DesktopInstanceInventory(entries: [DesktopInventoryEntry(association: f.associations[0], instance: fresh)], unknownCount: 0)
+        XCTAssertFalse(DesktopOpeningTarget.confirms(foreign, expected: [expected], launchedTarget: expected))
+        XCTAssertThrowsError(try DesktopInstanceInventory(entries: inventory.entries, unknownCount: 1).validate())
+    }
+    func testExactReceiverWaitsForBackendAndStableTreeWithoutChangingGUIGeneration() async throws {
+        let main = DesktopGeneration(pid: 190_010, uid: getuid(), started: "synthetic-launch", startTimeMicroseconds: 100)
+        let child = DesktopGeneration(pid: 190_050, uid: getuid(), started: "child", startTimeMicroseconds: 200)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let receiver = DesktopInstance(main: main, related: [main], nativeLaunchDate: Date().addingTimeInterval(-1), signingIdentity: signature)
+        let stable = DesktopInstance(main: main, related: [main, child], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature)
+        let script = StartupOwnershipSamples([.failure(.backendNotReady), .failure(.processChanged),
+            .success(DesktopObservation(matching: [receiver], ambiguous: false)),
+            .success(DesktopObservation(matching: [stable], ambiguous: false)),
+            .success(DesktopObservation(matching: [stable], ambiguous: false))])
+        let result = try await DesktopReadiness.wait(timeout: .seconds(1), interval: .milliseconds(1), expectedReceiver: receiver) {
+            try await script.next($0)
+        }
+        XCTAssertEqual(result, stable)
+        let calls = await script.calls
+        XCTAssertEqual(calls, 5)
+    }
+    func testShortAliasesBindActualDarwinSocketWithoutMovingEnvironment() async throws {
+        let f = try await fixture(), association = f.associations[1]
+        let before = try await f.store.inspectAccountSetup()
+        let paths = DesktopLaunchPaths(association: association, base: aliasRoot(f))
+        try paths.prepare(validator: f.validator); try paths.prepare(validator: f.validator)
+        XCTAssertEqual(URL(fileURLWithPath: paths.home).resolvingSymlinksInPath().path, URL(fileURLWithPath: association.codexHome).resolvingSymlinksInPath().path)
+        let directory = paths.home + "/ipc"
+        XCTAssertEqual(mkdir(directory, 0o700), 0)
+        let name = directory + "/ipc.sock"
+        XCTAssertLessThan(name.utf8.count, 104)
+        var address = sockaddr_un(); address.sun_family = sa_family_t(AF_UNIX)
+        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            name.utf8CString.withUnsafeBytes { buffer.copyBytes(from: $0) }
+        }
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0); XCTAssertGreaterThanOrEqual(fd, 0)
+        defer { close(fd) }
+        let result = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        XCTAssertEqual(result, 0)
+        let after = try await f.store.inspectAccountSetup()
+        XCTAssertEqual(after, before)
+        try f.validator.revalidate(association)
+    }
+    func testAliasRedirectionAndWritableParentFailClosed() async throws {
+        let f = try await fixture()
+        let paths = DesktopLaunchPaths(association: f.associations[1], base: aliasRoot(f))
+        try paths.prepare(validator: f.validator)
+        XCTAssertEqual(unlink(paths.home), 0)
+        XCTAssertEqual(symlink(f.associations[0].codexHome, paths.home), 0)
+        XCTAssertThrowsError(try paths.prepare(validator: f.validator))
+        XCTAssertEqual(unlink(paths.home), 0)
+        XCTAssertEqual(symlink(f.associations[1].codexHome, paths.home), 0)
+        XCTAssertEqual(chmod(URL(fileURLWithPath: paths.home).deletingLastPathComponent().deletingLastPathComponent().path, 0o777), 0)
+        XCTAssertThrowsError(try paths.validate(validator: f.validator))
+    }
+    func testOwnershipUsesGUIElectronAndItsDirectBackendHome() throws {
+        let main = ReleaseDesktopSystem.instance(1).main, backend = ReleaseDesktopSystem.instance(2).main
+        let rows = [DesktopProcessEvidence(generation: main, parent: 1, role: .main, electronDescriptors: 2),
+                    DesktopProcessEvidence(generation: backend, parent: main.pid, role: .backend, homeDescriptors: 1)]
+        XCTAssertEqual(try DesktopOwnership.resolve(before: rows, after: rows, standard: false).count, 1)
+        for bad in [Array(rows.prefix(1)), [rows[0], DesktopProcessEvidence(generation: backend, parent: 99, role: .backend, homeDescriptors: 1)],
+                    [DesktopProcessEvidence(generation: main, parent: 1, role: .main, homeDescriptors: 1), rows[1]]] {
+            XCTAssertThrowsError(try DesktopOwnership.resolve(before: bad, after: bad, standard: false))
+        }
+    }
+    func testReadinessCannotSubstituteAnotherLaunchServicesReceiver() async throws {
+        let receiver = ReleaseDesktopSystem.instance(1), replacement = ReleaseDesktopSystem.instance(2)
+        do {
+            _ = try await DesktopReadiness.wait(expectedReceiver: receiver) { _ in
+                DesktopObservation(matching: [replacement], ambiguous: false)
+            }
+            XCTFail("Replacement generation accepted")
+        } catch { XCTAssertEqual(error as? EnvironmentError, .processChanged) }
+    }
+    func testNativeReadinessPreservesBackendOwnershipAndExitCauses() async throws {
+        for cause in [EnvironmentError.backendNotReady, .ambiguousInstance, .launchedProcessExited] {
+            do {
+                _ = try await DesktopReadiness.wait(timeout: .milliseconds(10), interval: .milliseconds(1), preserveReason: true) { _ in throw cause }
+                XCTFail("Missing readiness accepted")
+            } catch { XCTAssertEqual(error as? EnvironmentError, cause == .ambiguousInstance ? .ownershipUnconfirmed : cause) }
+        }
+    }
+    func testLaunchReceiverAndFailureSurviveCoordinatorRestart() async throws {
+        let f = try await fixture()
+        await f.system.configure(activation: true)
+        do { try await f.open(); XCTFail("Activation failure accepted") } catch {}
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        let record = try XCTUnwrap(journal.pending())
+        XCTAssertNotNil(record.launchReceiver)
+        XCTAssertEqual(record.failure?.reason, .activation)
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let restarted = AccountSwitchingCoordinator(driver: driver)
+        let pending = try await restarted.refreshOpeningRecovery(), failure = await restarted.lastError
+        XCTAssertTrue(pending); XCTAssertEqual(failure, .activationFailed)
+        let before = await f.system.effects
+        try await restarted.reconcileOpeningRecovery()
+        XCTAssertNil(try journal.pending())
+        let after = await f.system.effects
+        XCTAssertEqual(after, before, "Recovery performs no process effect")
+    }
+    func testLaunchServicesErrorAndProcessExitDiagnosticsRoundTripWithoutRawPayloads() throws {
+        for error in [SwitchingError.environment(.launchServicesFailed(-10810)), .environment(.launchedProcessExited), .environment(.backendNotReady)] {
+            let record = OpeningFailureRecord(error), data = try JSONEncoder().encode(record)
+            XCTAssertEqual(try JSONDecoder().decode(OpeningFailureRecord.self, from: data).error, error)
+            XCTAssertLessThan(data.count, 100)
+        }
+    }
+    func testRestartRefusesAReplacementForTheRecordedLaunchReceiver() async throws {
+        let f = try await fixture()
+        await f.system.configure(activation: true)
+        do { try await f.open() } catch {}
+        await f.system.replace(f.associations[1])
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let restarted = AccountSwitchingCoordinator(driver: driver)
+        _ = try await restarted.refreshOpeningRecovery()
+        do { try await restarted.reconcileOpeningRecovery(); XCTFail("Replacement settled old launch") }
+        catch { XCTAssertEqual(error as? AccountOpeningError, .recoveryTargetChanged) }
+        XCTAssertNotNil(try OpeningOperationJournal(root: f.validator.managedRoot).pending())
+    }
+    func testLaunchServicesReturnsExactSyntheticReceiverAndPassesBothRoots() async throws {
+        let f = try await fixture(), paths = DesktopLaunchPaths(association: f.associations[1], base: aliasRoot(f))
+        try paths.prepare(validator: f.validator)
+        let app = f.root.appendingPathComponent("Probe.app"), contents = app.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        let source = f.root.appendingPathComponent("probe.swift")
+        try """
+        import AppKit
+        let home = ProcessInfo.processInfo.environment["CODEX_HOME"]!
+        let electron = ProcessInfo.processInfo.environment["CODEX_ELECTRON_USER_DATA_PATH"]!
+        let match = ProcessInfo.processInfo.arguments.contains("--user-data-dir=" + electron)
+        let result = ["home": home, "electron": electron, "argumentMatches": String(match), "pid": String(ProcessInfo.processInfo.processIdentifier)]
+        try! JSONSerialization.data(withJSONObject: result).write(to: URL(fileURLWithPath: home).appendingPathComponent("probe-result.json"))
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        // Stay alive until the worker has verified the receiver. Always self-exit
+        // after a bounded deadline even if the worker crashes before acknowledging.
+        let acknowledgement = URL(fileURLWithPath: home).appendingPathComponent("receiver-verified")
+        let deadline = Date().addingTimeInterval(15)
+        _ = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            if FileManager.default.fileExists(atPath: acknowledgement.path) || Date() >= deadline {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+        NSApplication.shared.run()
+        """.write(to: source, atomically: true, encoding: .utf8)
+        let compiler = Process(); compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        compiler.arguments = ["swiftc", source.path, "-o", contents.appendingPathComponent("MacOS/Probe").path]
+        try compiler.run(); compiler.waitUntilExit(); XCTAssertEqual(compiler.terminationStatus, 0)
+        let info: [String: Any] = ["CFBundleIdentifier": "test.codexswoop.probe." + UUID().uuidString,
+            "CFBundleExecutable": "Probe", "CFBundleName": "Synthetic Launch Probe", "CFBundlePackageType": "APPL", "LSUIElement": true]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+        // macOS 15 CI's hostless runner terminated during the in-process AppKit request.
+        // Exercise the same request source in a physical-main-thread AppKit worker.
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let worker = f.root.appendingPathComponent("launch-worker")
+        let workerCompiler = Process(); workerCompiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        workerCompiler.arguments = ["swiftc", "-swift-version", "6", "-parse-as-library",
+            repository.appendingPathComponent("Sources/CodexSwoopCore/LaunchServicesRequest.swift").path,
+            repository.appendingPathComponent("Sources/CodexSwoop/MainThreadPreparation.swift").path,
+            repository.appendingPathComponent("Tests/LaunchServices/LaunchWorker.swift").path, "-o", worker.path]
+        try workerCompiler.run(); workerCompiler.waitUntilExit(); XCTAssertEqual(workerCompiler.terminationStatus, 0)
+        let receipt = f.root.appendingPathComponent("receiver.json")
+        let process = Process(); process.executableURL = worker
+        process.arguments = [app.path, paths.home, paths.electron, receipt.path]
+        let diagnostics = f.root.appendingPathComponent("worker-stderr.txt")
+        XCTAssertTrue(FileManager.default.createFile(atPath: diagnostics.path, contents: nil))
+        let stderr = try FileHandle(forWritingTo: diagnostics)
+        defer { try? stderr.close() }
+        process.standardError = stderr
+        try process.run(); process.waitUntilExit()
+        guard process.terminationReason == .exit && process.terminationStatus == 0 else {
+            let trace = try String(contentsOf: diagnostics, encoding: .utf8)
+            XCTFail("AppKit QA worker reason=\(process.terminationReason.rawValue) status=\(process.terminationStatus); \(trace)")
+            return
+        }
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: receipt)) as? [String: Any])
+        XCTAssertGreaterThan(try XCTUnwrap(report["pid"] as? Int), 0)
+        XCTAssertEqual(report["bundle"] as? String, app.path)
+        let data = try Data(contentsOf: URL(fileURLWithPath: paths.home).appendingPathComponent("probe-result.json"))
+        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+        XCTAssertEqual(result["home"], paths.home); XCTAssertEqual(result["electron"], paths.electron)
+        XCTAssertEqual(result["argumentMatches"], "true")
+        XCTAssertEqual(result["pid"], (report["pid"] as? Int).map(String.init), "LaunchServices must return the reporting probe itself")
+    }
+    func testLaunchServicesFailureKeepsConcreteErrorCode() async throws {
+        let f = try await fixture()
+        do {
+            _ = try await NativeDesktopSystem.launchApplication(f.root.appendingPathComponent("Missing.app"),
+                paths: DesktopLaunchPaths(association: f.associations[1]), environment: [:])
+            XCTFail("Missing application launched")
+        } catch let error as EnvironmentError {
+            guard case .launchServicesFailed(let code) = error else { return XCTFail("Error detail lost") }
+            XCTAssertNotEqual(code, 0)
+        }
+    }
+}
+
 @MainActor final class ReadinessTests: XCTestCase {
+    func testManagedLaunchHomeFitsDarwinUnixSocketPath() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-socket-regression-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let f = try await ReleaseFixture.make(root: root)
+        let specification = try DesktopLaunchSpecification(association: f.associations[1])
+        let home = try XCTUnwrap(specification.arguments.first { $0.hasPrefix("CODEX_HOME=") })
+            .dropFirst("CODEX_HOME=".count)
+        XCTAssertLessThan((String(home) + "/ipc/ipc.sock").utf8.count, 104,
+            "Darwin sockaddr_un.sun_path cannot hold the original managed profile path")
+    }
     func testPersistentPreparationRetainsLegacyUUIDAndDoesNotBind() async throws {
         let root = URL(fileURLWithPath: "/private/tmp/codexswoop-xctest-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -737,5 +1134,54 @@ final class VersionIndependentCodexTests: XCTestCase {
         XCTAssertThrowsError(try NativeDesktopSystem.staticSigningIdentity(app))
         try Data("tampered fixture".utf8).write(to: resource)
         XCTAssertThrowsError(try NativeDesktopSystem.staticSigningIdentity(app))
+    }
+}
+
+final class ActionErrorLogTests: XCTestCase {
+    private func root() throws -> URL {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-error-log-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return root
+    }
+    func testErrorsPersistWithoutRawDescriptionsDomainsOrPaths() throws {
+        let root = try root(), log = ActionErrorLog(root: root)
+        log.record(.addAccount, error: ProfileError.invalidName)
+        log.record(.openProfile, error: NSError(domain: "fixture-private-domain", code: 42,
+            userInfo: [NSLocalizedDescriptionKey: "fixture-private-description", NSFilePathErrorKey: "/synthetic/private-location"]))
+        let bytes = try Data(contentsOf: ActionErrorLog(root: root).fileForViewing())
+        let text = String(decoding: bytes, as: UTF8.self)
+        XCTAssertTrue(text.contains("profile.invalidName")); XCTAssertTrue(text.contains("unexpected.42"))
+        for privateValue in ["fixture-private-domain", "fixture-private-description", "/synthetic/private-location"] {
+            XCTAssertFalse(text.contains(privateValue))
+        }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(try bytes.split(separator: 10).map { try decoder.decode(ActionErrorLog.Entry.self, from: Data($0)) }.count, 2)
+        let attributes = try FileManager.default.attributesOfItem(atPath: log.url.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+    func testRetentionKeepsLatest500Errors() throws {
+        let root = try root(), log = ActionErrorLog(root: root), url = try log.fileForViewing()
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        var previous = Data()
+        for index in 0..<501 {
+            previous.append(try encoder.encode(ActionErrorLog.Entry(timestamp: Date(), action: .other, code: "fixture.\(index)"))); previous.append(10)
+        }
+        try previous.write(to: url)
+        log.record(.addAccount, error: ProfileError.invalidName)
+        let lines = try Data(contentsOf: url).split(separator: 10)
+        XCTAssertEqual(lines.count, 500)
+        XCTAssertTrue(String(decoding: lines.first!, as: UTF8.self).contains("fixture.2"))
+        XCTAssertTrue(String(decoding: lines.last!, as: UTF8.self).contains("profile.invalidName"))
+    }
+    func testSymlinkCannotRedirectLogWrites() throws {
+        let root = try root(), outside = root.appendingPathComponent("sentinel")
+        let original = Data("fixture content remains unchanged".utf8)
+        try original.write(to: outside)
+        let log = ActionErrorLog(root: root)
+        try FileManager.default.createSymbolicLink(at: log.url, withDestinationURL: outside)
+        log.record(.addAccount, error: ProfileError.invalidName)
+        XCTAssertEqual(try Data(contentsOf: outside), original)
+        XCTAssertThrowsError(try log.fileForViewing())
     }
 }

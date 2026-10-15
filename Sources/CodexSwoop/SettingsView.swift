@@ -92,14 +92,12 @@ struct SettingsView: View {
                                 }
                                 Spacer(minLength: 12)
                                 Button(L10n.text("settings.restore")) { Task { await manager.restoreSavedManaged(item.id) } }
-                                    .disabled(!manager.storageReady || manager.isBusy)
                                     .accessibilityLabel(L10n.text("onboarding.restore", item.profile.name))
                             }.accessibilityElement(children: .contain)
                         }
                     }
                     Text(L10n.text("settings.preserve")).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     Button(L10n.text("settings.reset"), role: .destructive) { Task { await manager.resetAccountSetup() } }
-                        .disabled(!manager.storageReady || manager.isBusy || !manager.retainedEnvironments.contains(where: { $0.association.kind == .managed }))
                 }
                 if !manager.showDiagnostics { diagnosticsSection }
 
@@ -127,8 +125,8 @@ struct SettingsView: View {
 
     private var diagnosticsSection: some View {
         Section(L10n.text("settings.diagnostics")) {
+            Button(L10n.text("settings.openErrorLog")) { manager.openErrorLog() }
             Button(L10n.text("settings.checkAll")) { for profile in manager.profiles { manager.checkConnection(profile) } }
-                .disabled(manager.isBusy || !manager.associationsReady)
             DisclosureGroup(L10n.text("settings.usage")) {
                 Text(L10n.text("settings.usageDetail")).font(.caption).foregroundStyle(.secondary)
             }
@@ -137,10 +135,10 @@ struct SettingsView: View {
                 Text(manager.diagnosticErrorMessage ?? L10n.text("settings.noError"))
                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 if manager.needsOpeningReview {
-                    Button(L10n.text("menu.review")) { Task { await manager.reviewOpeningResult() } }.disabled(manager.isBusy)
+                    Button(L10n.text("menu.review")) { Task { await manager.reviewOpeningResult() } }
                 }
                 if manager.pendingSetup != nil {
-                    Button(L10n.text("setup.review")) { Task { await manager.reviewPendingSetup() } }.disabled(manager.isBusy)
+                    Button(L10n.text("setup.review")) { Task { await manager.reviewPendingSetup() } }
                 } else {
                     if !manager.storageReady {
                         HStack {

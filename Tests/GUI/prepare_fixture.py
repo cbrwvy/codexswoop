@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prepare a non-authenticated GUI fixture; never launch/quit Codex or touch user storage."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import plistlib
@@ -14,6 +15,7 @@ import sys
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--readiness', action='store_true')
+parser.add_argument('--linked', action='store_true', help='Two linked fictional managed environments and a fresh idle journal')
 parser.add_argument('--count', type=int, default=2, choices=range(0,21))
 parser.add_argument('--appearance', choices=['light','dark'])
 parser.add_argument('--preview-error', action='store_true')
@@ -63,6 +65,31 @@ if readiness and profiles:
     sidecar = root / "environments.json"
     sidecar.write_text(json.dumps({"schemaVersion": 1, "revision": 1, "associations": [association]}))
     sidecar.chmod(0o600)
+
+if args.linked:
+    assert not readiness, 'Use either --linked or --readiness'
+    def identity(path):
+        value = path.stat()
+        return {'device': value.st_dev, 'inode': value.st_ino, 'owner': value.st_uid, 'permissions': value.st_mode & 0o777}
+    associations = []
+    for profile, folder in zip(profiles, folders):
+        base = Path(folder)
+        associations.append({'profileID': profile['id'], 'environmentID': profile['id'], 'kind': 'managed',
+            'codexHome': str(base / 'codex-home'), 'electronData': str(base / 'electron-user-data'),
+            'homeIdentity': identity(base / 'codex-home'), 'electronIdentity': identity(base / 'electron-user-data'),
+            'origin': 'userSelected', 'lastCheck': 'directoryMetadataVerified', 'checkedAt': now})
+    store_id = str(uuid.uuid4())
+    journal = {'schemaVersion': 2, 'storeID': store_id, 'revision': 0, 'state': 'idle'}
+    data = json.dumps(journal, sort_keys=True).encode()
+    values = {'environments.json': json.dumps({'schemaVersion': 1, 'revision': 1, 'associations': associations}).encode(),
+        'managed-environments.json': json.dumps({'schemaVersion': 1, 'revision': 1, 'prepared': associations}).encode(),
+        'opening-journal.json': data,
+        'opening-journal-watermark.json': json.dumps({'schemaVersion': 1, 'storeID': store_id, 'revision': 0,
+            'journalSHA256': hashlib.sha256(data).hexdigest()}).encode()}
+    for name, contents in values.items():
+        path = root / name
+        path.write_bytes(contents)
+        path.chmod(0o600)
 
 bundle = repository / "build" / ("qa-ui-overhaul-" + identifier) / "CodexSwoopQA.app"
 (bundle / "Contents/MacOS").mkdir(parents=True, mode=0o700)

@@ -4,7 +4,15 @@ import Foundation
 
 public enum OpeningJournalError: Error, LocalizedError, Sendable {
     case invalid, unavailable, busy, conflict, legacyUninitialized
-    public var errorDescription: String? { L10n.text("review.journalDetail") }
+    public var errorDescription: String? {
+        switch self {
+        case .invalid: L10n.text("review.journalInvalid")
+        case .unavailable: L10n.text("review.journalUnavailable")
+        case .busy: L10n.text("review.journalBusy")
+        case .conflict: L10n.text("review.journalConflict")
+        case .legacyUninitialized: L10n.text("review.journalLegacy")
+        }
+    }
 }
 
 /// Evidence only. Never deserialize a capability, profile name, authorization or launch arguments.
@@ -22,6 +30,8 @@ public struct PendingOpeningOperation: Codable, Equatable, Sendable {
     public let targetInstance: DesktopInstance?
     public let others: [Receiver]
     public var effects: [EnvironmentSubmittedEffect]
+    public var launchReceiver: DesktopInstance? = nil
+    public var failure: OpeningFailureRecord? = nil
 
     public init(scope: EnvironmentOperationScope, bootSession: String, buildFingerprint: OpeningBuildFingerprint) throws {
         id = scope.id; mode = scope.mode; self.bootSession = bootSession; self.buildFingerprint = buildFingerprint
@@ -76,6 +86,16 @@ public struct PendingOpeningOperation: Codable, Equatable, Sendable {
             case .unknown: throw OpeningJournalError.invalid
             }
         }
+        if let launchReceiver {
+            _ = try DesktopObservation(matching: [launchReceiver], ambiguous: false).unique()
+            guard launched, targetInstance == nil,
+                  !others.flatMap({ $0.instance.related }).contains(where: { $0.pid == launchReceiver.main.pid }),
+                  !activated || effects.contains(where: {
+                      if case .activation(let value) = $0 { return value.main == launchReceiver.main && value.nativeLaunchDate == launchReceiver.nativeLaunchDate }
+                      return false
+                  }) else { throw OpeningJournalError.invalid }
+        }
+        try failure?.validate()
     }
     private struct DesktopInstanceKey: Hashable {
         let main: DesktopGeneration
@@ -86,15 +106,16 @@ public struct PendingOpeningOperation: Codable, Equatable, Sendable {
 /// One operation across all Swoop processes. The lease is held until postflight or failure,
 /// never by a recovered record. Every record transition also uses the existing metadata lock.
 public final class OpeningOperationJournal: @unchecked Sendable {
-    private struct Envelope: Codable {
+    struct Envelope: Codable {
         var schemaVersion = 2
         let storeID: UUID
         let revision: UInt64
         let state: String
         let pending: PendingOpeningOperation?
         let settled: PendingOpeningOperation?
+        var supersession: OpeningEpochProvenance? = nil
     }
-    private struct Watermark: Codable {
+    struct Watermark: Codable {
         var schemaVersion = 1
         let storeID: UUID
         let revision: UInt64
@@ -147,12 +168,24 @@ public final class OpeningOperationJournal: @unchecked Sendable {
             return nil
         }
         guard let journal, let marker else { throw OpeningJournalError.invalid }
+        let value = try decodePair(journal, marker)
+        if value.schemaVersion >= 3 {
+            do { try OpeningEpochEngine.verifyProvenance(root: root, provenance: value.supersession, storeID: value.storeID) }
+            catch { throw OpeningJournalError.invalid }
+        }
+        return value
+    }
+    static func decodePair(_ journal: Data, _ marker: Data) throws -> Envelope {
+        guard journal.count <= 262_144, marker.count <= 262_144 else { throw OpeningJournalError.invalid }
         let value: Envelope, watermark: Watermark
         do {
             value = try JSONDecoder().decode(Envelope.self, from: journal)
             watermark = try JSONDecoder().decode(Watermark.self, from: marker)
         } catch { throw OpeningJournalError.invalid }
-        guard value.schemaVersion == 2, watermark.schemaVersion == 1,
+        guard (value.schemaVersion == 2 && value.supersession == nil)
+                || (value.schemaVersion == 3 && value.supersession != nil && value.supersession?.archiveName == nil)
+                || (value.schemaVersion == 4 && value.supersession?.archiveName != nil) else { throw OpeningJournalError.invalid }
+        guard watermark.schemaVersion == 1,
               value.storeID == watermark.storeID, value.revision == watermark.revision,
               hash(journal) == watermark.journalSHA256,
               (value.state == "idle" && value.pending == nil)
@@ -186,6 +219,11 @@ public final class OpeningOperationJournal: @unchecked Sendable {
             try persist(Envelope(storeID: UUID(), revision: 0, state: "idle", pending: nil, settled: nil))
         }
     }
+    /// Serialize an open-only action or additive setup without changing unresolved history.
+    public func acquireOperationLease() throws {
+        mutex.lock(); defer { mutex.unlock() }
+        try acquireLease()
+    }
     public func begin(_ record: PendingOpeningOperation) throws {
         mutex.lock(); defer { mutex.unlock() }
         try record.validate()
@@ -207,6 +245,23 @@ public final class OpeningOperationJournal: @unchecked Sendable {
         try metadataLock {
             guard var record = try Self.readLocked(root: root), record.id == operation else { throw OpeningJournalError.conflict }
             record.effects.append(effect); try record.validate(); try save(record)
+        }
+    }
+    public func captureLaunchReceiver(_ instance: DesktopInstance, operation: UUID) throws {
+        try update(operation) { record in
+            guard record.launchReceiver == nil else { throw OpeningJournalError.conflict }
+            record.launchReceiver = instance
+        }
+    }
+    public func recordFailure(_ failure: OpeningFailureRecord, operation: UUID) throws {
+        try update(operation) { $0.failure = failure }
+    }
+    private func update(_ operation: UUID, change: (inout PendingOpeningOperation) throws -> Void) throws {
+        mutex.lock(); defer { mutex.unlock() }
+        guard lease >= 0, ownedID == operation else { throw OpeningJournalError.conflict }
+        try metadataLock {
+            guard var record = try Self.readLocked(root: root), record.id == operation else { throw OpeningJournalError.conflict }
+            try change(&record); try record.validate(); try save(record)
         }
     }
     /// Acquire a fresh exclusive lease before any read-only reconciliation. A live owner blocks it.
@@ -239,8 +294,8 @@ public final class OpeningOperationJournal: @unchecked Sendable {
     }
     private func save(_ record: PendingOpeningOperation?, settled: PendingOpeningOperation? = nil) throws {
         guard let current = try Self.envelopeLocked(root: root), current.revision < UInt64.max else { throw OpeningJournalError.invalid }
-        try persist(Envelope(storeID: current.storeID, revision: current.revision + 1,
-            state: record == nil ? "idle" : "pending", pending: record, settled: settled))
+        try persist(Envelope(schemaVersion: current.schemaVersion, storeID: current.storeID, revision: current.revision + 1,
+            state: record == nil ? "idle" : "pending", pending: record, settled: settled, supersession: current.supersession))
     }
     private static func hash(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()

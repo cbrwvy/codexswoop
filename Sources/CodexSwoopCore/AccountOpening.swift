@@ -12,6 +12,7 @@ public enum AccountOpeningError: Error, LocalizedError, Equatable, Sendable {
     case targetNotLinked, identityUnverified, instanceAlreadyOpen, windowUnavailable, ambiguousInstance
     case missingPermissions, processChanged, launchFailure, terminationTimeout, busy, activityUnknown
     case userCancelled, partialCompletion, recoveryRequired, unknownInstances, primaryConsentRequired
+    case recoveryTargetChanged, recoveryBootChanged
     public var errorDescription: String? {
         switch self {
         case .targetNotLinked: L10n.text("message.0301e88b40")
@@ -27,6 +28,8 @@ public enum AccountOpeningError: Error, LocalizedError, Equatable, Sendable {
         case .activityUnknown: L10n.text("message.3a5cedce65")
         case .userCancelled: L10n.text("message.abb4a62b3a")
         case .partialCompletion: L10n.text("message.275e5420ee")
+        case .recoveryTargetChanged: L10n.text("review.targetChanged")
+        case .recoveryBootChanged: L10n.text("review.bootChanged")
         case .recoveryRequired: L10n.text("message.543aeaca22")
         case .unknownInstances: L10n.text("message.a7f4e51df7")
         case .primaryConsentRequired: L10n.text("message.b3140d0e6e")

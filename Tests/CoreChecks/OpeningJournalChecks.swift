@@ -83,6 +83,60 @@ extension CoreChecks {
         func open(_ f: EnvironmentOpeningFixture) async throws {
             try await f.coordinator.openAccount(to: f.target, mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
         }
+        for preserved in [false, true] {
+            await run("Durable opening: fresh store, two profiles, restart; preserved directories=\(preserved)") {
+                let root = base.appendingPathComponent(UUID().uuidString)
+                let environment = root.appendingPathComponent("Profiles/unused-environment")
+                let sentinel = environment.appendingPathComponent("preserved.txt")
+                if preserved {
+                    try FileManager.default.createDirectory(at: environment, withIntermediateDirectories: true,
+                        attributes: [.posixPermissions: 0o700])
+                    try Data("Synthetic preserved environment".utf8).write(to: sentinel)
+                }
+                let store = ProfileStore(root: root)
+                _ = try await store.load()
+                let path = root.appendingPathComponent("opening-journal.json")
+                let watermark = root.appendingPathComponent("opening-journal-watermark.json")
+                let before = try Data(contentsOf: path), beforeMarker = try Data(contentsOf: watermark)
+                let envelope = try JSONSerialization.jsonObject(with: before) as! [String: Any]
+                let marker = try JSONSerialization.jsonObject(with: beforeMarker) as! [String: Any]
+                try expect(envelope["storeID"] as? String == marker["storeID"] as? String,
+                    "Fresh store ID matches")
+                try expect(envelope["revision"] as? Int == 0 && marker["revision"] as? Int == 0,
+                    "Fresh revision is zero")
+                try expect(marker["journalSHA256"] as? String == SHA256.hash(data: before).map { String(format: "%02x", $0) }.joined(),
+                    "Watermark binds exact journal bytes")
+                _ = try await store.create(name: "Fixture One")
+                let expected = try await store.create(name: "Fixture Two")
+                let restarted = ProfileStore(root: root)
+                try expect(try await restarted.load() == expected, "Both profiles survive restart")
+                try expect(try OpeningOperationJournal(root: root).pending() == nil, "No invented pending operation")
+                try expect(try Data(contentsOf: path) == before && Data(contentsOf: watermark) == beforeMarker,
+                    "Profile creation and startup retain the consistent idle pair")
+                if preserved { try expect(try Data(contentsOf: sentinel) == Data("Synthetic preserved environment".utf8),
+                    "Unreferenced environment contents retained") }
+            }
+        }
+        await scenario("launched receiver replaced before recovery retains exact evidence", running: false) { f in
+            let journal = OpeningOperationJournal(root: f.f.validator.managedRoot)
+            let intent = try await record(f)
+            let original = OpeningSystem.instance(70)
+            try journal.begin(intent); try journal.append(.launch, operation: intent.id)
+            try journal.append(.activation(original), operation: intent.id); journal.abandon()
+            await f.system.setInstance(OpeningSystem.instance(71), for: f.association)
+            let root = f.f.validator.managedRoot
+            let before = try Data(contentsOf: root.appendingPathComponent("opening-journal.json"))
+            let marker = try Data(contentsOf: root.appendingPathComponent("opening-journal-watermark.json"))
+            let recovered = restarted(f)
+            try expect(try await recovered.refreshOpeningRecovery(), "Recorded effects restore real recovery")
+            do { try await recovered.reconcileOpeningRecovery(); throw CheckFailure(description: "Replacement accepted as historical proof") }
+            catch AccountOpeningError.recoveryTargetChanged {}
+            try expect(await recovered.state == .recoveryRequired, "Unknown historical result stays blocked")
+            try expect(try Data(contentsOf: root.appendingPathComponent("opening-journal.json")) == before
+                && Data(contentsOf: root.appendingPathComponent("opening-journal-watermark.json")) == marker,
+                "Both original evidence files remain byte-identical")
+            try expect(await f.system.effects.isEmpty, "Reconciliation has no lifecycle effects")
+        }
         await scenario("successful postflight leaves versioned idle record and permits fresh consent") { f in
             try await open(f)
             let journal = OpeningOperationJournal(root: f.f.validator.managedRoot)
@@ -352,7 +406,13 @@ extension CoreChecks {
                 do { _ = try raw.preciseGeneration(); throw CheckFailure(description: "Relative selector accepted") }
                 catch EnvironmentError.processChanged {}
             }
-            let executable = URL(fileURLWithPath: raw.executable).standardizedFileURL.path
+            // The fixture checkout can live beneath macOS /tmp aliases. Obtain this QA
+            // process's kernel path rather than guessing how ps/argv spelling was canonicalized.
+            var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+            guard proc_pidpath(getpid(), &path, UInt32(path.count)) > 0 else {
+                throw CheckFailure(description: "Synthetic self executable unavailable")
+            }
+            let executable = String(decoding: path.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
             let metadata = try DesktopProcessMetadata.parse("\(raw.pid) \(raw.parent) \(raw.uid) \(raw.started) \(executable)")
             let first = try metadata.preciseGeneration(), second = try metadata.preciseGeneration()
             try expect(first == second && first.startTimeMicroseconds != nil, "Microsecond generation is stable for the exact QA process")

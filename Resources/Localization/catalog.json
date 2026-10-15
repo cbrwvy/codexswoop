@@ -79,6 +79,11 @@
     "ru": "Очистить сохранённые аккаунты…",
     "uz-Latn": "Saqlangan hisoblarni tozalash…"
   },
+  "settings.openErrorLog": {
+    "en": "Open error log",
+    "ru": "Открыть журнал ошибок",
+    "uz-Latn": "Xatolar jurnalini ochish"
+  },
   "settings.diagnostics": {
     "en": "Permissions & Diagnostics",
     "ru": "Разрешения и диагностика",
@@ -1919,5 +1924,70 @@
     "en": "Last individually tested Codex version: {0}.",
     "ru": "Последняя отдельно протестированная версия Codex: {0}.",
     "uz-Latn": "Alohida sinovdan o‘tkazilgan so‘nggi Codex versiyasi: {0}."
+  },
+  "review.journalInvalid": {
+    "en": "The opening journal and watermark are invalid, unsupported, or inconsistent. Keep both files and backups; automatic repair is blocked. Restore only an independently verified matching pair after a separate review.",
+    "ru": "Журнал открытия и watermark повреждены, несовместимы или несогласованы. Сохраните оба файла и резервные копии; автоматическое исправление заблокировано. Восстановление независимо проверенной согласованной пары требует отдельного согласования.",
+    "uz-Latn": "Ochish jurnali va watermark buzilgan, mos emas yoki nomuvofiq. Ikkala fayl va zaxiralarni saqlang; avtomatik tuzatish bloklangan. Tekshirilgan mos juftlikni tiklash uchun alohida kelishuv kerak."
+  },
+  "review.journalUnavailable": {
+    "en": "The opening journal or its metadata lock cannot be accessed. Check storage ownership and permissions without changing journal evidence.",
+    "ru": "Журнал открытия или блокировка metadata недоступны. Проверьте владельца и права хранилища, сохранив записи журнала.",
+    "uz-Latn": "Ochish jurnali yoki metama’lumot qulfi ochilmadi. Jurnal dalillarini saqlagan holda ombor egasi va ruxsatlarini tekshiring."
+  },
+  "review.journalBusy": {
+    "en": "Another process holds the opening or metadata lock. No recovery result is available until that owner releases it.",
+    "ru": "Другой процесс удерживает блокировку opening или metadata. Результат проверки недоступен до освобождения блокировки владельцем.",
+    "uz-Latn": "Boshqa jarayon ochish yoki metama’lumot qulfini ushlab turibdi. Egasi qulfni bo‘shatmaguncha tekshiruv natijasi mavjud emas."
+  },
+  "review.journalConflict": {
+    "en": "An unfinished opening or changed metadata conflicts with this action. Preserve the journal; Check Again must verify the recorded operation before another action.",
+    "ru": "Незавершённое открытие или изменённые metadata конфликтуют с действием. Сохраните журнал; перед следующим действием «Проверить ещё раз» должно проверить записанную операцию.",
+    "uz-Latn": "Tugallanmagan ochish yoki o‘zgargan metama’lumot bu amalga zid. Jurnalni saqlang; yangi amaldan oldin yozilgan amalni qayta tekshirish kerak."
+  },
+  "review.journalLegacy": {
+    "en": "This existing metadata store has no opening journal or watermark. It is a legacy store, not a clean installation. Bootstrap requires separate consent, a verified catalog snapshot, and review of unresolved older operations.",
+    "ru": "У существующего хранилища metadata отсутствуют журнал открытия и watermark. Это legacy-хранилище, а не чистая установка. Инициализация требует отдельного согласия, проверки снимка каталогов и незавершённых старых операций.",
+    "uz-Latn": "Mavjud metama’lumot omborida ochish jurnali va watermark yo‘q. Bu yangi o‘rnatish emas, eski ombor. Boshlang‘ich sozlash uchun alohida rozilik, katalog nusxasi va eski tugallanmagan amallar tekshiruvi kerak."
+  },
+  "review.pendingDetail": {
+    "en": "A recorded unfinished opening blocks new actions. Check Again verifies current process ownership without launching or closing Codex. If proof fails, Details keeps the specific reason; dismissing a message never settles the journal.",
+    "ru": "Новые действия блокирует записанная незавершённая операция открытия. «Проверить ещё раз» проверяет текущую принадлежность процессов без запуска или закрытия Codex. Если доказательств недостаточно, в подробностях сохраняется конкретная причина; закрытие сообщения не завершает журнал.",
+    "uz-Latn": "Yozilgan tugallanmagan ochish yangi amallarni to‘sadi. Qayta tekshirish Codex ilovasini ochmasdan yoki yopmasdan joriy jarayon egaligini tekshiradi. Dalil yetmasa, aniq sabab tafsilotlarda saqlanadi; xabarni yopish jurnalni yakunlamaydi."
+  },
+  "review.targetChanged": {
+    "en": "The recorded target process generation no longer matches the current environment. Historical activation is unproven. The pending record is preserved; a separately agreed recovery procedure is required before new operations.",
+    "ru": "Записанное поколение целевого процесса больше не совпадает с текущим окружением. Историческая активация не доказана. Pending-запись сохранена; перед новыми операциями нужна отдельно согласованная процедура восстановления.",
+    "uz-Latn": "Yozilgan nishon jarayon avlodi joriy muhitga mos kelmaydi. Oldingi faollashtirish isbotlanmagan. Tugallanmagan yozuv saqlanadi; yangi amallardan oldin alohida kelishilgan tiklash tartibi kerak."
+  },
+  "review.bootChanged": {
+    "en": "The recorded opening belongs to another Mac boot session. Process disappearance does not prove the historical result. Preserve the journal and agree a separate recovery procedure.",
+    "ru": "Записанное открытие относится к другой загрузочной сессии Mac. Исчезновение процессов не доказывает исторический результат. Сохраните журнал и отдельно согласуйте процедуру восстановления.",
+    "uz-Latn": "Yozilgan ochish boshqa Mac yuklanish seansiga tegishli. Jarayonlar yo‘qligi oldingi natijani isbotlamaydi. Jurnalni saqlang va alohida tiklash tartibini kelishing."
+  },
+  "launch.pathTooLong": {
+    "en": "The launch path exceeds the macOS local socket limit. No launch was sent.",
+    "ru": "Путь запуска превышает лимит локального socket macOS. Запрос запуска не отправлен.",
+    "uz-Latn": "Ishga tushirish yo‘li macOS lokal soket limitidan uzun. So‘rov yuborilmadi."
+  },
+  "launch.servicesFailed": {
+    "en": "LaunchServices failed (code %@). The opening remains pending until its outcome is verified.",
+    "ru": "Ошибка LaunchServices (код %@). Операция остаётся pending до проверки результата.",
+    "uz-Latn": "LaunchServices xatosi (kod %@). Natija tekshirilmaguncha amal pending holatida qoladi."
+  },
+  "launch.processExited": {
+    "en": "The launched GUI process exited before readiness was confirmed.",
+    "ru": "Запущенный GUI-процесс завершился до подтверждения готовности.",
+    "uz-Latn": "GUI jarayoni tayyorligi tasdiqlanmasdan tugadi."
+  },
+  "launch.backendNotReady": {
+    "en": "The GUI appeared, but its backend did not become ready within the deadline.",
+    "ru": "GUI появился, но его backend не стал готов в отведённое время.",
+    "uz-Latn": "GUI paydo bo‘ldi, ammo backend belgilangan vaqtda tayyor bo‘lmadi."
+  },
+  "launch.ownershipUnconfirmed": {
+    "en": "The GUI appeared, but ownership of both environment directories could not be confirmed.",
+    "ru": "GUI появился, но принадлежность обоих каталогов окружения не подтверждена.",
+    "uz-Latn": "GUI paydo bo‘ldi, ammo ikkala muhit katalogiga egalik tasdiqlanmadi."
   }
 }

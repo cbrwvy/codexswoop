@@ -22,6 +22,8 @@ Keep local Codex environments organized under profile names you choose. CodexSwo
 
 A profile name is only a local label and does not verify which ChatGPT account is signed in. Adding, renaming and removing profiles does not require a particular Codex version or a verified Codex installation. Metadata integrity and pending-recovery safeguards still apply.
 
+Local preview build 10 keeps **Add Account** and **Open Separately** available when an older opening operation needs review. Opening validates the current signed GUI and environment, uses the existing operation lock, and leaves other instances running. Old opening history is preserved. **Close Others & Open** retains its confirmation and recovery checks. Find the latest 500 sanitized errors under **Settings → Diagnostics → Open error log**.
+
 ## Features
 
 - Link the standard Codex environment or prepare a separate Managed environment.

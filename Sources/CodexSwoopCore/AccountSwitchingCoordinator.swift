@@ -55,10 +55,14 @@ public protocol AccountSwitchingDriver: Sendable {
     func finishOpening(_ plan: AccountOpeningPlan, success: Bool) async
     func restoreOpeningRecovery() async throws -> Bool
     func completeOpeningJournal() async throws
+    func persistOpeningFailure(_ error: SwitchingError) async throws
+    func restoredOpeningFailure() async throws -> SwitchingError?
 }
 public extension AccountSwitchingDriver {
     func restoreOpeningRecovery() async throws -> Bool { false }
     func completeOpeningJournal() async throws {}
+    func persistOpeningFailure(_ error: SwitchingError) async throws {}
+    func restoredOpeningFailure() async throws -> SwitchingError? { nil }
     func strategy() async throws -> AccountSwitchingStrategy { .restart }
     func activate(profile: AccountProfile) async throws { throw EnvironmentError.activationUnavailable }
 }
@@ -213,6 +217,7 @@ extension AccountSwitchingCoordinator {
         do {
             if try await driver?.restoreOpeningRecovery() == true {
                 environmentRecoveryRequired = true; state = .recoveryRequired; openingRecoveryResolution = nil
+                if let restored = try await driver?.restoredOpeningFailure() { lastError = restored }
                 if openingDisposition == nil { openingDisposition = .recoveryRequired }
             }
         } catch OpeningJournalError.busy {
@@ -353,9 +358,14 @@ extension AccountSwitchingCoordinator {
         confirmOpen: @Sendable (AccountOpeningPlan) async -> Bool = { _ in false },
         confirmClose: @Sendable (AccountCloseConfirmation) async -> AccountCloseDecision = { _ in .cancel }) async throws {
         guard !busy else { throw SwitchingError.opening(.busy) }
-        try await refreshOpeningRecovery()
+        let supportsIndependent = await (driver as? any ScopedEnvironmentOpeningDriver)?.independentOpeningAllowed == true
         guard !busy else { throw SwitchingError.opening(.busy) }
-        guard state != .recoveryRequired else { throw SwitchingError.opening(.recoveryRequired) }
+        let independent = environmentScoped && mode == .openSeparately && supportsIndependent
+        if !independent {
+            try await refreshOpeningRecovery()
+            guard !busy else { throw SwitchingError.opening(.busy) }
+            guard state != .recoveryRequired else { throw SwitchingError.opening(.recoveryRequired) }
+        }
         guard let driver else { state = .unavailable; throw SwitchingError.unavailable }
         busy = true; openingRecoveryResolution = nil; lastError = nil; openingResult = nil; environmentOpeningResult = nil; openingDisposition = nil; openingProgress = AccountOpeningProgress(); rollbackFailed = false
         defer { busy = false }
@@ -471,15 +481,17 @@ extension AccountSwitchingCoordinator {
                await scopedDriver.openingEffectDisposition() == .notDispatched {
                 openingProgress.actionMayHaveOccurred = false
             }
-            if openingProgress.actionMayHaveOccurred {
+            if openingProgress.actionMayHaveOccurred && !independent {
                 environmentRecoveryRequired = true
                 state = .recoveryRequired
                 openingDisposition = openingProgress.closedProfileIDs.isEmpty ? .recoveryRequired : .partialCompletion
                 // Preserve the precise cause in lastError; expose partial state separately from success.
                 openingResult = nil
             } else { state = failure == .opening(.userCancelled) ? .cancelled : .failed }
+            do { try await driver.persistOpeningFailure(failure) }
+            catch { lastError = failure } // A failed diagnostic write never clears pending or hides its cause.
             if let plan { await driver.finishOpening(plan, success: false) }
-            if (try? await driver.restoreOpeningRecovery()) != false {
+            if !independent, (try? await driver.restoreOpeningRecovery()) != false {
                 environmentRecoveryRequired = true; state = .recoveryRequired
                 if openingDisposition == nil { openingDisposition = .recoveryRequired }
             }

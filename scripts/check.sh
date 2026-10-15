@@ -24,6 +24,8 @@ if [ "${1:-}" = --safe-process-checks ]; then
 else
   swift run "${swift_flags[@]}" --cache-path "$PWD/build/cache/swiftpm" --disable-sandbox codexswoop-checks
 fi
+./scripts/check-epoch-recovery.sh
+python3 -m unittest discover -s Tests/ReleaseTooling -p 'test_*.py'
 full_xcode=false
 if xcodebuild -version > build/xcode-version.log 2>&1; then
   full_xcode=true

@@ -1,8 +1,14 @@
 name: Native macOS checks
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      focused_launch_services:
+        description: Run only the real disposable LaunchServices receiver test on macOS 15
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -24,13 +30,40 @@ jobs:
           python3 scripts/audit-baseline.py
           python3 scripts/audit-baseline.py --staged
       - name: Compile, test, and build app bundles
+        if: ${{ !inputs.focused_launch_services }}
         run: ./scripts/check.sh --require-xctest
+      - name: Focused LaunchServices receiver
+        if: ${{ inputs.focused_launch_services }}
+        run: |
+          export CLANG_MODULE_CACHE_PATH="$PWD/build/cache/clang"
+          export SWIFTPM_MODULECACHE_OVERRIDE="$CLANG_MODULE_CACHE_PATH"
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          # Record compiler isolation for the actual callback and the old spelling.
+          mkdir -p build/launch-callback
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          source = Path('Sources/CodexSwoopCore/LaunchServicesRequest.swift').read_text()
+          for label, text in [('fixed', source), ('baseline', source.replace('{ @Sendable running, error in', '{ running, error in'))]:
+              path = Path('build/launch-callback') / (label + '.swift')
+              path.write_text(text)
+              sil = subprocess.check_output(['xcrun', 'swiftc', '-swift-version', '6', '-parse-as-library', '-emit-sil', str(path)], text=True)
+              marker = '// closure #2 in closure #1 in static LaunchServicesRequest.open'
+              block = next((part for part in sil.split('\n\n') if marker in part), 'Callback SIL marker not found')
+              print(label + ' callback isolation:\n' + block[:700], flush=True)
+          PY
+          swift test --disable-sandbox --cache-path "$PWD/build/cache/swiftpm" \
+            --sdk "$SDKROOT" -Xlinker -platform_version -Xlinker macos -Xlinker 14.0 \
+            -Xlinker "$(xcrun --sdk macosx --show-sdk-version)" \
+            --filter P0LaunchTests/testLaunchServicesReturnsExactSyntheticReceiverAndPassesBothRoots
       - name: Build universal SwiftPM bundle
+        if: ${{ !inputs.focused_launch_services }}
         run: |
           ./scripts/build-app.sh release universal
           python3 scripts/check-project.py --bundle build/release-universal/CodexSwoop.app
           swift scripts/check-icons.swift --bundle build/release-universal/CodexSwoop.app
       - name: Check UI rendering and icon payload
+        if: ${{ !inputs.focused_launch_services }}
         run: |
           ./scripts/check-account-setup-ui.sh
           ./scripts/check-usage-ui.sh

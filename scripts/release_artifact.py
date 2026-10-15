@@ -183,6 +183,7 @@ def _allowed_bundle_file(relative: str) -> bool:
     allowed = {
         "Contents/Info.plist",
         "Contents/MacOS/CodexSwoop",
+        "Contents/MacOS/codexswoop-recovery",
         "Contents/Resources/AppIcon.icns",
         "Contents/Resources/Assets.car",
         "Contents/Resources/MenuBarIcon.png",
@@ -334,6 +335,9 @@ def inspect_app(app: Path, *, expected_version: str | None = None) -> tuple[str,
     executable = app / "Contents/MacOS/CodexSwoop"
     if not os.access(executable, os.X_OK):
         raise ReleaseError("CodexSwoop executable bit is not set")
+    helper = app / "Contents/MacOS/codexswoop-recovery"
+    if helper.exists() and (not os.access(helper, os.X_OK) or macho_slices(helper.read_bytes()) is None):
+        raise ReleaseError("Recovery helper must be an executable Mach-O")
     macho_count = 0
     for path in files:
         try:
@@ -667,6 +671,9 @@ def package_release(args: argparse.Namespace, *, repository: Path, runner: Calla
         _copy_bundle(app, staged_app, runner)
 
         if args.mode == PUBLIC_MODE:
+            helper = staged_app / "Contents/MacOS/codexswoop-recovery"
+            if helper.exists():
+                runner(["/usr/bin/codesign", "--force", "--sign", args.identity, "--options", "runtime", "--timestamp", str(helper)])
             runner(["/usr/bin/codesign", "--force", "--sign", args.identity, "--options", "runtime", "--timestamp", str(staged_app)])
             _signature_details(staged_app, public=True, runner=runner, require_notarization=False)
             app_zip = output_dir / f".{final_name}.app.zip"

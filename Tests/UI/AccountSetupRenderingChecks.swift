@@ -7,10 +7,27 @@ import ServiceManagement
 @main struct AccountSetupRenderingChecks {
     @MainActor static func main() throws {
         let withAccessibility = CommandLine.arguments.contains("--with-accessibility")
+        let menuLayoutOnly = CommandLine.arguments.contains("--menu-layout-checks")
         NSApplication.shared.setActivationPolicy(withAccessibility ? .accessory : .prohibited)
         if withAccessibility {
             NSApplication.shared.finishLaunching()
             NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        }
+        for frame in [NSRect(x: 0, y: 0, width: 800, height: 480),
+                      NSRect(x: -1200, y: 90, width: 1200, height: 700),
+                      NSRect(x: 200, y: -900, width: 900, height: 600)] {
+            let anchor = NSRect(x: frame.midX, y: frame.maxY, width: 24, height: 24)
+            let height = MenuPopoverGeometry.maximumContentHeight(anchor: anchor, visibleFrame: frame)
+            precondition(height > 0 && height <= 560 && height + 40 <= frame.height)
+            let lower = anchor.offsetBy(dx: 0, dy: -100)
+            precondition(MenuPopoverGeometry.maximumContentHeight(anchor: lower, visibleFrame: frame) <= height)
+            for chrome in [CGFloat(16), 32, 60] {
+                let limit = MenuPopoverGeometry.maximumContentHeight(anchor: anchor, visibleFrame: frame, chromeHeight: chrome)
+                let oversizedOrigin = NSRect(x: frame.maxX + 100, y: frame.maxY + 200, width: 320, height: limit + chrome)
+                let bounded = MenuPopoverGeometry.constrainedFrame(oversizedOrigin, anchor: anchor, visibleFrame: frame)
+                precondition(frame.contains(bounded) && bounded.maxY <= anchor.minY,
+                    "Popover must fit below the menu bar on scaled/negative-coordinate displays")
+            }
         }
         NativeAccountMenuChecks.run()
         if withAccessibility {
@@ -79,6 +96,7 @@ import ServiceManagement
         }
         func render<V: View>(_ view: V, _ name: String, highContrast: Bool = false, owner: ProfileManager? = nil) throws {
             let renderingManager = owner ?? manager
+            if menuLayoutOnly && name != "two-profiles" && !name.hasPrefix("bounded-warning-") && name != "six-long-profiles" { return }
             for language in [AppLanguage.english, .russian, .uzbek] {
             renderingManager.setLanguage(language)
             if name == "login-error" { precondition(manager.loginError == L10n.text("onboarding.login.failed")) }
@@ -89,8 +107,29 @@ import ServiceManagement
                 host.appearance = NSApplication.shared.appearance
                 RunLoop.main.run(until: Date().addingTimeInterval(0.1))
                 let size = host.fittingSize
-                precondition(size.width >= 300 && size.width <= 560 && size.height > 100 && size.height < 800, "Invalid layout \(name): \(size)")
-                host.frame = NSRect(origin: .zero, size: size); host.layoutSubtreeIfNeeded()
+                // A menu starts with a minimal viewport until its document is attached.
+                // The settled window-backed size below remains the acceptance assertion.
+                precondition(size.width >= 300 && size.width <= 560 && size.height > 0 && size.height < 800, "Invalid layout \(name): \(size)")
+                if name.hasPrefix("bounded-warning-") {
+                    let limit = CGFloat(Int(name.split(separator: "-").last!)!)
+                    precondition(size.height <= limit + 1, "Menu exceeded synthetic screen budget")
+                }
+                host.frame = NSRect(origin: .zero, size: size)
+                // AppKit-backed scroll views need a window for layout/cacheDisplay, even
+                // offscreen. An unattached host can produce a nonempty all-black PNG.
+                let renderingWindow = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+                renderingWindow.isReleasedWhenClosed = false
+                renderingWindow.contentView = host
+                RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+                let fitted = host.fittingSize
+                precondition(fitted.width >= 300 && fitted.height > 100, "Collapsed layout \(name): \(fitted)")
+                renderingWindow.setContentSize(fitted)
+                host.frame = NSRect(origin: .zero, size: fitted)
+                if name.hasPrefix("bounded-warning-") {
+                    precondition(fitted.height <= CGFloat(Int(name.split(separator: "-").last!)!) + 1)
+                }
+                defer { renderingWindow.contentView = nil; renderingWindow.close() }
+                host.layoutSubtreeIfNeeded()
                 if name == "opening-review-restored-details" {
                     renderingManager.showDiagnostics = false
                     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
@@ -106,7 +145,24 @@ import ServiceManagement
                 host.cacheDisplay(in: host.bounds, to: rep)
                 guard let png = rep.representation(using: .png, properties: [:]), png.count > 1000 else { fatalError("Empty bitmap") }
                 try png.write(to: output.appendingPathComponent(name + "-" + language.rawValue + (scheme == .dark ? "-dark.png" : "-light.png")))
-                if withAccessibility && (name == "link-existing" || name == "add-another") {
+                if name == "bounded-warning-240" {
+                    func scrollViews(_ view: NSView) -> [NSScrollView] {
+                        (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap(scrollViews)
+                    }
+                    guard let scroll = scrollViews(host).first(where: {
+                        ($0.documentView?.bounds.height ?? 0) > $0.contentView.bounds.height + 1
+                    }), let document = scroll.documentView else { fatalError("Overflowing menu must scroll") }
+                    let beforeScroll = scroll.contentView.bounds.origin
+                    document.scroll(NSPoint(x: 0, y: document.bounds.maxY - scroll.contentView.bounds.height))
+                    scroll.reflectScrolledClipView(scroll.contentView)
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+                    precondition(scroll.contentView.bounds.origin != beforeScroll, "Warnings/footer must be reachable")
+                    guard let scrolledRep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { fatalError("No scrolled bitmap") }
+                    host.cacheDisplay(in: host.bounds, to: scrolledRep)
+                    let scrolledPNG = scrolledRep.representation(using: .png, properties: [:])!
+                    try scrolledPNG.write(to: output.appendingPathComponent(name + "-scrolled-" + language.rawValue + (scheme == .dark ? "-dark.png" : "-light.png")))
+                }
+                if withAccessibility && (name == "link-existing" || name == "add-another" || name == "pending-add-another-enabled") {
                     // Visible in-process component host, enabled only for an explicit logged-in QA run.
                     // No native input, permission request, or Desktop adapter is used.
                     let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
@@ -128,7 +184,7 @@ import ServiceManagement
                         precondition(attribute(card, .value) as? String == L10n.text(selected ? "onboarding.selected" : "onboarding.notSelected"))
                     }
                     precondition(attribute(node("add-account-name"), .description) as? String == L10n.text("account.profileName"))
-                    precondition(attribute(node("add-account-continue"), .enabled) as? Bool == false)
+                    precondition(attribute(node("add-account-continue"), .enabled) as? Bool == true)
                     semanticChecks += 1
                     window.orderOut(nil); window.contentView = nil
                 }
@@ -193,7 +249,7 @@ import ServiceManagement
         precondition(manager.profiles.count == 2 && manager.associations.count == 2 && !manager.showsWelcome)
         let activeBeforeUpdate = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
         manager.previewInstallationForChecks(.unverified)
-        precondition(!manager.showsWelcome && manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0) != nil })
+        precondition(!manager.showsWelcome && manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0) == nil })
         precondition(manager.addAccountBlockedReason(managed: true) == nil, "Unverifiable processes/signatures only block lifecycle, not metadata setup")
         let activeAfterUpdate = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
         precondition(activeAfterUpdate == activeBeforeUpdate)
@@ -210,12 +266,19 @@ import ServiceManagement
         }
         manager.errorMessage = nil
         try render(MenuBarView(manager: manager), "two-profiles")
+        manager.previewOpeningReviewForChecks(.opening(.recoveryTargetChanged))
+        for height in [CGFloat(240), CGFloat(360)] {
+            try render(MenuBarView(manager: manager, maximumHeight: height), "bounded-warning-\(Int(height))")
+        }
+        manager.previewOpeningReviewForChecks(nil)
+
         try MainThreadPreparation.wait {
             for index in 0..<4 { guard await manager.create(name: "Fictional extra \(index)") else { fatalError("Fixture create") } }
             _ = await manager.rename(id: manager.profiles[0].id, name: "Very long fictional profile name · Очень длинное имя · Juda uzun hisob nomi")
         }
         precondition(manager.profiles.count == 6)
         try render(MenuBarView(manager: manager), "six-long-profiles")
+        if menuLayoutOnly { print("PASS bounded menu geometry and \(rendered) two/six-profile warning renders"); return }
         manager.show(EnvironmentError.readinessTimedOut)
         try render(MenuBarView(manager: manager), "previous-error")
         try render(SettingsView(manager: manager).frame(width: 440, height: 400), "error-diagnostics")
@@ -236,7 +299,7 @@ import ServiceManagement
             precondition(manager.diagnosticErrorMessage == SwitchingError.opening(.launchFailure).errorDescription)
         }
         manager.setLanguage(.english)
-        precondition(manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0) == L10n.text("review.previousOperation") })
+        precondition(manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0, mode: .closeOthersAndOpen) == L10n.text("review.previousOperation") })
         try render(MenuBarView(manager: manager), "opening-review-required")
         try render(SettingsView(manager: manager).frame(width: 440, height: 400), "opening-review-retained-error")
         manager.previewOpeningReviewForChecks(nil)
@@ -257,7 +320,19 @@ import ServiceManagement
         let recoveredManager = ProfileManager(defaults: fixtureDefaults)
         try MainThreadPreparation.wait { await recoveredManager.reload() }
         precondition(recoveredManager.needsOpeningReview && recoveredManager.storageReady)
-        precondition(recoveredManager.profiles.allSatisfy { recoveredManager.openingBlockedReason(for: $0) != nil })
+        precondition(recoveredManager.profiles.allSatisfy { recoveredManager.openingBlockedReason(for: $0, mode: .closeOthersAndOpen) != nil })
+        let pendingJournalBytes = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal.json"))
+        let pendingWatermarkBytes = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal-watermark.json"))
+        try render(ProfileEditor(manager: recoveredManager, profile: nil, managed: true, initialName: "Fixture new account"),
+            "pending-add-another-enabled", owner: recoveredManager)
+        try MainThreadPreparation.wait {
+            let result = await recoveredManager.addAccount(name: "Fixture added through pending", managed: true)
+            precondition(result)
+            precondition(recoveredManager.profiles.contains { $0.name == "Fixture added through pending" })
+        }
+        let journalAfterAttempt = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal.json"))
+        let watermarkAfterAttempt = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal-watermark.json"))
+        precondition(journalAfterAttempt == pendingJournalBytes && watermarkAfterAttempt == pendingWatermarkBytes)
         try render(MenuBarView(manager: recoveredManager), "opening-review-restored", owner: recoveredManager)
         try render(SettingsView(manager: recoveredManager).frame(width: 440, height: 400), "opening-review-restored-details", owner: recoveredManager)
         // Test-only cleanup; the production UI has no reset/delete-journal action.
@@ -282,10 +357,13 @@ import ServiceManagement
             let preview = try await store.previewProfileRemoval(id: manager.profiles[1].id)
             _ = try await store.commitAccountSetup(preview); await manager.reload()
         }
-        precondition(manager.profiles.count == 1 && manager.retainedEnvironments.count == 1)
+        precondition(manager.profiles.count == 2 && manager.retainedEnvironments.count == 1)
         try MainThreadPreparation.wait {
-            let remaining = try await store.previewProfileRemoval(id: manager.profiles[0].id)
-            _ = try await store.commitAccountSetup(remaining); await manager.reload()
+            for profile in manager.profiles {
+                let remaining = try await store.previewProfileRemoval(id: profile.id)
+                _ = try await store.commitAccountSetup(remaining)
+            }
+            await manager.reload()
         }
         precondition(manager.showsWelcome && !manager.retainedEnvironments.isEmpty)
         try render(MenuBarView(manager: manager), "welcome-with-retained-accounts")
@@ -298,7 +376,7 @@ import ServiceManagement
         try MainThreadPreparation.wait {
             let before = try await store.inspectAccountSetup()
             let preview = try await store.previewAccountSetupReset()
-            precondition(preview.removedProfiles.isEmpty && preview.removedSavedEnvironmentCount == 1)
+            precondition(preview.removedProfiles.isEmpty && preview.removedSavedEnvironmentCount == 2)
             _ = try await store.commitAccountSetup(preview); await manager.reload()
             let after = try await store.inspectAccountSetup()
             precondition(after.profiles == before.profiles && after.associations == before.associations && after.managed == before.managed)
