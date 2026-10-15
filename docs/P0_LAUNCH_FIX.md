@@ -92,7 +92,10 @@ directories are preserved. The same durable watermark-first protocol publishes a
 schema-4 idle epoch with no settled operation and `historicalOutcome: unknown`.
 Older readers reject schema 4. Only the same consent can resume exact prepared
 bytes; a committed rerun cannot erase subsequent results or pending operations.
-There is no startup migration or Reset. No real retirement was applied.
+There is no startup migration or Reset. No real retirement was applied. After
+separately authorized normal shutdown of Swoop and a leftover synthetic QA copy,
+fresh native read-only inspection returned READY. The active pair, catalogs and
+prior archive remained byte- and identity-identical. READY does not authorize writes.
 
 Real two-profile opening/activation/repetition after restart remains an acceptance
 gate requiring separate recovery, installation and lifecycle authorization.
@@ -113,8 +116,11 @@ its completion body. Apple's NSWorkspace header documents a concurrent callback
 queue. The callback now explicitly declares `@Sendable`, preventing older SDK/compiler
 imports from inheriting the caller's MainActor isolation. Its only captured state is
 the existing lock-protected one-shot continuation; configuration, receiver validation,
-timeout, ownership and lifecycle authorization stay unchanged. Remote validation of
-this correction is recorded in the PR handoff.
+timeout, ownership and lifecycle authorization stay unchanged. The [focused macOS-15 run](https://github.com/cbrwvy/codexswoop/actions/runs/38694110894)
+passed the actual receiver test. Compiler SIL on that runner identifies the old
+callback as MainActor-isolated and the fixed callback as nonisolated, corroborating
+the concurrent-callback isolation defect. A separate local nil-receiver crash was
+removed by the probe acknowledgement protocol below.
 
 The probe now stays alive until the worker verifies the receiver and writes an
 acknowledgement into the disposable home; it always self-exits after 15 seconds if
