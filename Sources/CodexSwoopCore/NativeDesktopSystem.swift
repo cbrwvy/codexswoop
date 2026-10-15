@@ -81,6 +81,8 @@ public actor NativeDesktopSystem: DesktopSystem {
     private var scopeClosed = Set<UUID>()
     private var scopeQuit = Set<UUID>()
     private var scopeActivated = false, scopeLaunched = false
+    private var openingStage: OpeningFailureRecord.Stage?
+    public func environmentOpeningFailureStage() -> OpeningFailureRecord.Stage? { openingStage }
     private var scopeLaunchedInstance: DesktopInstance?
     private var validatedInstallation: InstallationValidationSnapshot?
     private var validatedBuild: OpeningBuildFingerprint?
@@ -134,7 +136,10 @@ public actor NativeDesktopSystem: DesktopSystem {
         for attempt in 0...20 {
             try Task.checkCancellation()
             if await Self.pidIsForeground(instance) {
-                guard try await observe(association).unique() == instance else { throw EnvironmentError.processChanged }
+                openingStage = .activationPostflight
+                let newlyLaunched = scope != nil && scopeLaunchedInstance != nil
+                let fresh = try await observeOpeningTarget(association, launchedReceiver: newlyLaunched ? instance : nil)
+                guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: newlyLaunched) else { throw EnvironmentError.processChanged }
                 return
             }
             if attempt < 20 { try await Task.sleep(for: .milliseconds(50)) }
@@ -620,14 +625,18 @@ public actor NativeDesktopSystem: DesktopSystem {
         for item in scope.others { try validator.revalidate(item.association) }
     }
     private func checkScopeInventory(_ scope: EnvironmentOperationScope, closed: Set<UUID>, launched: DesktopInstance?) async throws {
-        let target = try await observe(scope.target).unique()
-        guard target == (launched ?? scope.targetInstance) else { throw AccountOpeningError.processChanged }
+        openingStage = .activationScopeTarget
+        let target = try await observeOpeningTarget(scope.target, launchedReceiver: launched)
+        guard DesktopOpeningTarget.matches(target, expected: launched ?? scope.targetInstance,
+            newlyLaunched: launched != nil) else { throw AccountOpeningError.processChanged }
         if scope.mode == .closeOthersAndOpen {
+            openingStage = .activationScopeInventory
             let inventory = try await environmentInstanceInventory(associations: scope.associations.associations + scope.retainedResearch)
             try inventory.validate()
             let expected = scope.others.filter { !closed.contains($0.association.environmentID) }
                 + (target.map { [DesktopInventoryEntry(association: scope.target, instance: $0)] } ?? [])
-            guard inventory.entries.count == expected.count, expected.allSatisfy(inventory.entries.contains) else { throw AccountOpeningError.processChanged }
+            let launchedTarget = launched != nil ? target.map { DesktopInventoryEntry(association: scope.target, instance: $0) } : nil
+            guard DesktopOpeningTarget.confirms(inventory, expected: expected, launchedTarget: launchedTarget) else { throw AccountOpeningError.processChanged }
         }
     }
     private func recheckScope(_ scope: EnvironmentOperationScope) async throws {
@@ -638,11 +647,13 @@ public actor NativeDesktopSystem: DesktopSystem {
         try Task.checkCancellation()
     }
     public func activateScopedEnvironment(_ scope: EnvironmentOperationScope, instance: DesktopInstance) async throws {
+        openingStage = .activation
         try await recheckScope(scope)
         guard !scopeActivated, instance == (scopeLaunchedInstance ?? scope.targetInstance),
               scope.mode == .openSeparately || scopeClosed.count == scope.others.count else { throw EnvironmentOpeningError.stalePlan }
         _ = try Self.validateLiveSignature(instance.main.pid, expected: instance.signingIdentity)
         scopeActivated = true
+        openingStage = .activationDispatch
         try await dispatchPIDActivation(scope.target, instance: instance, scope: scope)
     }
     public func launchScopedEnvironment(_ scope: EnvironmentOperationScope) async throws -> DesktopInstance {

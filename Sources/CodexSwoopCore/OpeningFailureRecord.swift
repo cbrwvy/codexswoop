@@ -6,9 +6,15 @@ public struct OpeningFailureRecord: Codable, Equatable, Sendable {
         case launchServices, processExited, readinessTimeout, backendNotReady, ownershipUnconfirmed
         case processChanged, activation, launch, incompatibleBuild, cancelled, other
     }
+    public enum Stage: String, Codable, Sendable {
+        case launch, activation, activationScopeTarget, activationScopeInventory, activationDispatch, activationPostflight
+        case driverPostflightTarget, driverPostflightInventory, driverForeground, journalCompletion
+    }
+    public let stage: Stage?
     public let reason: Reason
     public let code: Int?
-    public init(_ error: SwitchingError) {
+    public init(_ error: SwitchingError, stage: Stage? = nil) {
+        self.stage = stage
         var number: Int?
         switch error {
         case .environment(.launchServicesFailed(let value)): reason = .launchServices; number = value

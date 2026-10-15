@@ -43,6 +43,7 @@ actor ReleaseDesktopSystem: DesktopSystem {
     var effects: [String] = []
     var unknownCount = 0
     var failActivation = false, failLaunch = false
+    var growLaunchedTree = false, replaceLaunchedGeneration = false
     var scope: EnvironmentOperationScope?
     var pidScope: PIDActivationScope?
     var pidConsumed = false
@@ -61,6 +62,7 @@ actor ReleaseDesktopSystem: DesktopSystem {
     func configure(unknown: Int = 0, activation: Bool = false, launch: Bool = false) {
         unknownCount = unknown; failActivation = activation; failLaunch = launch
     }
+    func configureLaunchedTreeGrowth(replaceGeneration: Bool = false) { growLaunchedTree = true; replaceLaunchedGeneration = replaceGeneration }
     func removeSyntheticInstance(_ id: UUID) { instances.removeValue(forKey: id) }
     func replace(_ association: EnvironmentAssociation) { instances[association.environmentID] = Self.instance(20) }
     var buildStamp = "c"
@@ -100,7 +102,10 @@ actor ReleaseDesktopSystem: DesktopSystem {
     func launch(_ specification: DesktopLaunchSpecification) throws {
         effects.append("launch")
         if failLaunch { throw EnvironmentError.launchFailed }
-        instances[specification.association.environmentID] = Self.instance(10)
+        let generation = DesktopGeneration(pid: 190_010, uid: getuid(), started: "synthetic-launch", startTimeMicroseconds: 100)
+        instances[specification.association.environmentID] = DesktopInstance(main: generation, related: [generation],
+            nativeLaunchDate: Date().addingTimeInterval(-1), signingIdentity: CodexSigningIdentity(identifier: "com.openai.codex",
+                teamIdentifier: OfficialCodexPolicy.teamIdentifier, codeDirectoryHash: String(repeating: "b", count: 40)))
     }
     func authorizeEnvironmentOperation(_ value: EnvironmentOperationScope, allowPrimary: Bool) throws {
         try value.validate()
@@ -115,6 +120,13 @@ actor ReleaseDesktopSystem: DesktopSystem {
         ledger.mark(value.id, effect: .activation(instance)); effects.append("activate")
         if failActivation { throw SwitchingError.activationFailed }
         foreground = instance
+        if growLaunchedTree {
+            let child = DesktopGeneration(pid: 190_050, uid: getuid(), started: "synthetic-child", startTimeMicroseconds: 200)
+            let main = replaceLaunchedGeneration ? DesktopGeneration(pid: instance.main.pid, uid: instance.main.uid,
+                started: instance.main.started, startTimeMicroseconds: 101) : instance.main
+            instances[value.target.environmentID] = DesktopInstance(main: main, related: [main, child],
+                nativeLaunchDate: instance.nativeLaunchDate, signingIdentity: instance.signingIdentity)
+        }
     }
     func launchScopedEnvironment(_ value: EnvironmentOperationScope) throws -> DesktopInstance {
         guard scope == value else { throw EnvironmentOpeningError.stalePlan }
@@ -151,6 +163,7 @@ actor ReleaseDesktopSystem: DesktopSystem {
         pidConsumed = true; effects.append("pidActivate"); foreground = instance
     }
     func verifyPIDForeground(_ instance: DesktopInstance) throws {
-        guard foreground == instance else { throw SwitchingError.activationFailed }
+        guard foreground?.main == instance.main, foreground?.nativeLaunchDate == instance.nativeLaunchDate,
+              foreground?.signingIdentity == instance.signingIdentity else { throw SwitchingError.activationFailed }
     }
 }

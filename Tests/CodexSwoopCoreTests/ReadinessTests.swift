@@ -10,6 +10,17 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
     }
 }
 
+private actor StartupOwnershipSamples {
+    var samples: [Result<DesktopObservation, EnvironmentError>]
+    var calls = 0
+    init(_ samples: [Result<DesktopObservation, EnvironmentError>]) { self.samples = samples }
+    func next(_ timeout: Duration) throws -> DesktopObservation {
+        precondition(timeout > .zero && timeout <= .seconds(5))
+        calls += 1
+        return try (samples.count > 1 ? samples.removeFirst() : samples[0]).get()
+    }
+}
+
 @MainActor final class P0LaunchTests: XCTestCase {
     private func fixture(running: Bool = false) async throws -> ReleaseFixture {
         let root = URL(fileURLWithPath: "/private/tmp/codexswoop-p0-\(UUID().uuidString)")
@@ -20,6 +31,104 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
         let root = URL(fileURLWithPath: "/private/tmp/csp0-" + UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         return root
+    }
+    func testCloseOthersWithZeroOthersAllowsLaunchedReceiverTreeGrowth() async throws {
+        let f = try await fixture()
+        await f.system.removeSyntheticInstance(f.associations[0].environmentID)
+        await f.system.configureLaunchedTreeGrowth()
+        try await f.open(.closeOthersAndOpen)
+        let effects = await f.system.effects, state = await f.coordinator.state
+        XCTAssertEqual(effects, ["launch", "activate"])
+        XCTAssertEqual(state, .environmentOpened(f.profiles[1].id))
+        XCTAssertNil(try OpeningOperationJournal(root: f.validator.managedRoot).pending())
+        let current = await f.system.instances[f.associations[1].environmentID]
+        XCTAssertEqual(current?.main.startTimeMicroseconds, 100)
+        XCTAssertEqual(current?.related.count, 2)
+    }
+    func testReceiverContinuityRejectsSamePIDWithDifferentGenerationDateOrSignature() throws {
+        let generation = DesktopGeneration(pid: 190_010, uid: getuid(), started: "synthetic-launch", startTimeMicroseconds: 100)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let receiver = DesktopInstance(main: generation, related: [generation], nativeLaunchDate: Date().addingTimeInterval(-1), signingIdentity: signature)
+        let child = DesktopGeneration(pid: 190_050, uid: getuid(), started: "child", startTimeMicroseconds: 200)
+        let grown = DesktopInstance(main: generation, related: [generation, child], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature)
+        XCTAssertNotEqual(receiver, grown, "Full snapshots remain distinct for quit/recovery evidence")
+        XCTAssertTrue(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: true))
+        XCTAssertFalse(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: false))
+        let changed = DesktopGeneration(pid: generation.pid, uid: generation.uid, started: generation.started, startTimeMicroseconds: 101)
+        for bad in [DesktopInstance(main: changed, related: [changed], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature),
+                    DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate.addingTimeInterval(1), signingIdentity: signature),
+                    DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate,
+                        signingIdentity: CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier, codeDirectoryHash: String(repeating: "c", count: 40))),
+                    DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate)] {
+            XCTAssertFalse(DesktopOpeningTarget.matches(bad, expected: receiver, newlyLaunched: true))
+        }
+        let incomplete = DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate)
+        XCTAssertFalse(DesktopOpeningTarget.matches(grown, expected: incomplete, newlyLaunched: true))
+    }
+    func testStageMarkerRoundTripsAndLegacyFailureStillDecodes() throws {
+        let value = OpeningFailureRecord(.opening(.processChanged), stage: .activationScopeInventory)
+        let restored = try JSONDecoder().decode(OpeningFailureRecord.self, from: JSONEncoder().encode(value))
+        XCTAssertEqual(restored.stage, .activationScopeInventory)
+        XCTAssertEqual(restored.error, .opening(.processChanged))
+        let legacy = try JSONDecoder().decode(OpeningFailureRecord.self, from: Data(#"{"reason":"processChanged"}"#.utf8))
+        XCTAssertNil(legacy.stage)
+    }
+    func testRealGenerationChangeAfterLaunchPreservesPendingAcrossRestart() async throws {
+        let f = try await fixture()
+        await f.system.removeSyntheticInstance(f.associations[0].environmentID)
+        await f.system.configureLaunchedTreeGrowth(replaceGeneration: true)
+        do { try await f.open(.closeOthersAndOpen); XCTFail("Same PID replacement accepted") }
+        catch { XCTAssertEqual(error as? SwitchingError, .opening(.processChanged)) }
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot), record = try XCTUnwrap(journal.pending())
+        XCTAssertEqual(record.launchReceiver?.main.startTimeMicroseconds, 100)
+        XCTAssertEqual(record.failure?.stage, .driverPostflightTarget)
+        XCTAssertEqual(record.failure?.reason, .processChanged)
+        let names = ["opening-journal.json", "opening-journal-watermark.json"]
+        let before = try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }
+        let restarted = AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(bootSession: { "synthetic-boot" },
+            store: f.store, validator: f.validator, system: f.system))
+        let review = try await restarted.refreshOpeningRecovery()
+        XCTAssertTrue(review)
+        XCTAssertEqual(try journal.pending(), record)
+        XCTAssertEqual(try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }, before)
+        let effects = await f.system.effects
+        XCTAssertEqual(effects, ["launch", "activate"], "Startup neither retries nor reconciles")
+    }
+    func testNewTargetInventoryContinuityKeepsUnknownAndForeignOwnershipBlocked() async throws {
+        let f = try await fixture()
+        let main = DesktopGeneration(pid: 190_010, uid: getuid(), started: "synthetic-launch", startTimeMicroseconds: 100)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let old = DesktopInstance(main: main, related: [main], nativeLaunchDate: Date().addingTimeInterval(-1), signingIdentity: signature)
+        let child = DesktopGeneration(pid: 190_050, uid: getuid(), started: "child", startTimeMicroseconds: 200)
+        let fresh = DesktopInstance(main: main, related: [main, child], nativeLaunchDate: old.nativeLaunchDate, signingIdentity: signature)
+        let expected = DesktopInventoryEntry(association: f.associations[1], instance: old)
+        let inventory = DesktopInstanceInventory(entries: [DesktopInventoryEntry(association: f.associations[1], instance: fresh)], unknownCount: 0)
+        try inventory.validate()
+        XCTAssertTrue(DesktopOpeningTarget.confirms(inventory, expected: [expected], launchedTarget: expected))
+        XCTAssertFalse(DesktopOpeningTarget.confirms(inventory, expected: [expected], launchedTarget: nil))
+        let foreign = DesktopInstanceInventory(entries: [DesktopInventoryEntry(association: f.associations[0], instance: fresh)], unknownCount: 0)
+        XCTAssertFalse(DesktopOpeningTarget.confirms(foreign, expected: [expected], launchedTarget: expected))
+        XCTAssertThrowsError(try DesktopInstanceInventory(entries: inventory.entries, unknownCount: 1).validate())
+    }
+    func testExactReceiverWaitsForBackendAndStableTreeWithoutChangingGUIGeneration() async throws {
+        let main = DesktopGeneration(pid: 190_010, uid: getuid(), started: "synthetic-launch", startTimeMicroseconds: 100)
+        let child = DesktopGeneration(pid: 190_050, uid: getuid(), started: "child", startTimeMicroseconds: 200)
+        let signature = CodexSigningIdentity(identifier: "com.openai.codex", teamIdentifier: OfficialCodexPolicy.teamIdentifier,
+            codeDirectoryHash: String(repeating: "b", count: 40))
+        let receiver = DesktopInstance(main: main, related: [main], nativeLaunchDate: Date().addingTimeInterval(-1), signingIdentity: signature)
+        let stable = DesktopInstance(main: main, related: [main, child], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature)
+        let script = StartupOwnershipSamples([.failure(.backendNotReady), .failure(.processChanged),
+            .success(DesktopObservation(matching: [receiver], ambiguous: false)),
+            .success(DesktopObservation(matching: [stable], ambiguous: false)),
+            .success(DesktopObservation(matching: [stable], ambiguous: false))])
+        let result = try await DesktopReadiness.wait(timeout: .seconds(1), interval: .milliseconds(1), expectedReceiver: receiver) {
+            try await script.next($0)
+        }
+        XCTAssertEqual(result, stable)
+        let calls = await script.calls
+        XCTAssertEqual(calls, 5)
     }
     func testShortAliasesBindActualDarwinSocketWithoutMovingEnvironment() async throws {
         let f = try await fixture(), association = f.associations[1]

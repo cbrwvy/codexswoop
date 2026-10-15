@@ -58,6 +58,7 @@ public extension ScopedEnvironmentOpeningDriver {
 }
 
 public extension DesktopSystem {
+    func environmentOpeningFailureStage() async -> OpeningFailureRecord.Stage? { nil }
     func environmentInstanceInventory(associations: [EnvironmentAssociation]) async throws -> DesktopInstanceInventory {
         try await instanceInventory(associations: associations)
     }

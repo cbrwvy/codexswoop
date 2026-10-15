@@ -40,3 +40,34 @@ public enum DesktopReadiness {
         throw preserveReason ? (lastReason ?? .readinessTimedOut) : .readinessTimedOut
     }
 }
+
+/// A newly launched GUI retains its exact identity while Electron adds/removes descendants.
+/// Use only after fresh strict root/signature/ancestry observation, never to authorize a quit.
+public enum DesktopOpeningTarget {
+    public static func matches(_ observed: DesktopInstance?, expected: DesktopInstance?, newlyLaunched: Bool) -> Bool {
+        if observed == expected { return true }
+        guard newlyLaunched, let observed, let expected,
+              expected.main.startTimeMicroseconds != nil, expected.signingIdentity != nil else { return false }
+        return observed.main == expected.main && observed.nativeLaunchDate == expected.nativeLaunchDate
+            && observed.signingIdentity == expected.signingIdentity
+    }
+    public static func confirms(_ inventory: DesktopInstanceInventory, expected: [DesktopInventoryEntry],
+        launchedTarget: DesktopInventoryEntry?) -> Bool {
+        inventory.entries.count == expected.count && expected.allSatisfy { entry in
+            inventory.entries.contains { fresh in
+                fresh.association == entry.association && matches(fresh.instance, expected: entry.instance,
+                    newlyLaunched: launchedTarget == entry)
+            }
+        }
+    }
+}
+
+extension DesktopSystem {
+    /// Repeats read-only observations only. The caller still checks catalogs and the full inventory.
+    func observeOpeningTarget(_ association: EnvironmentAssociation, launchedReceiver: DesktopInstance?) async throws -> DesktopInstance? {
+        guard let launchedReceiver else { return try await observe(association).unique() }
+        return try await DesktopReadiness.wait(timeout: .seconds(5), expectedReceiver: launchedReceiver, preserveReason: true) {
+            try await self.observe(association, timeout: $0)
+        }
+    }
+}
