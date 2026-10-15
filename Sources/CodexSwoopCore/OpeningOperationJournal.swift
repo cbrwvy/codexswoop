@@ -169,7 +169,7 @@ public final class OpeningOperationJournal: @unchecked Sendable {
         }
         guard let journal, let marker else { throw OpeningJournalError.invalid }
         let value = try decodePair(journal, marker)
-        if value.schemaVersion == 3 {
+        if value.schemaVersion >= 3 {
             do { try OpeningEpochEngine.verifyProvenance(root: root, provenance: value.supersession, storeID: value.storeID) }
             catch { throw OpeningJournalError.invalid }
         }
@@ -183,7 +183,8 @@ public final class OpeningOperationJournal: @unchecked Sendable {
             watermark = try JSONDecoder().decode(Watermark.self, from: marker)
         } catch { throw OpeningJournalError.invalid }
         guard (value.schemaVersion == 2 && value.supersession == nil)
-                || (value.schemaVersion == 3 && value.supersession != nil) else { throw OpeningJournalError.invalid }
+                || (value.schemaVersion == 3 && value.supersession != nil && value.supersession?.archiveName == nil)
+                || (value.schemaVersion == 4 && value.supersession?.archiveName != nil) else { throw OpeningJournalError.invalid }
         guard watermark.schemaVersion == 1,
               value.storeID == watermark.storeID, value.revision == watermark.revision,
               hash(journal) == watermark.journalSHA256,

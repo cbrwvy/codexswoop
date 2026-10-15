@@ -147,17 +147,28 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
         let info: [String: Any] = ["CFBundleIdentifier": "test.codexswoop.probe." + UUID().uuidString,
             "CFBundleExecutable": "Probe", "CFBundleName": "Synthetic Launch Probe", "CFBundlePackageType": "APPL", "LSUIElement": true]
         try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-        let receiver = try await NativeDesktopSystem.launchApplication(app, paths: paths, environment: ["PATH": "/usr/bin:/bin"])
-        XCTAssertGreaterThan(receiver.0, 0)
-        let native = try XCTUnwrap(NSRunningApplication(processIdentifier: receiver.0))
-        XCTAssertEqual(native.bundleURL?.path, app.path); XCTAssertEqual(native.launchDate, receiver.1)
+        // macOS 15 CI's hostless runner terminated during the in-process AppKit request.
+        // Exercise the same request source in a physical-main-thread AppKit worker.
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let worker = f.root.appendingPathComponent("launch-worker")
+        let workerCompiler = Process(); workerCompiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        workerCompiler.arguments = ["swiftc", "-swift-version", "6", "-parse-as-library",
+            repository.appendingPathComponent("Sources/CodexSwoopCore/LaunchServicesRequest.swift").path,
+            repository.appendingPathComponent("Sources/CodexSwoop/MainThreadPreparation.swift").path,
+            repository.appendingPathComponent("Tests/LaunchServices/LaunchWorker.swift").path, "-o", worker.path]
+        try workerCompiler.run(); workerCompiler.waitUntilExit(); XCTAssertEqual(workerCompiler.terminationStatus, 0)
+        let receipt = f.root.appendingPathComponent("receiver.json")
+        let process = Process(); process.executableURL = worker
+        process.arguments = [app.path, paths.home, paths.electron, receipt.path]
+        try process.run(); process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0, "AppKit QA worker must return an exact receiver and observe its self-exit")
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: receipt)) as? [String: Any])
+        XCTAssertGreaterThan(try XCTUnwrap(report["pid"] as? Int), 0)
+        XCTAssertEqual(report["bundle"] as? String, app.path)
         let data = try Data(contentsOf: URL(fileURLWithPath: paths.home).appendingPathComponent("probe-result.json"))
         let result = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
         XCTAssertEqual(result["home"], paths.home); XCTAssertEqual(result["electron"], paths.electron)
         XCTAssertEqual(result["argumentMatches"], "true")
-        // The disposable probe exits itself; the adapter never sends terminate or kill.
-        try await Task.sleep(for: .seconds(2.2))
-        XCTAssertTrue(native.isTerminated)
     }
     func testLaunchServicesFailureKeepsConcreteErrorCode() async throws {
         let f = try await fixture()

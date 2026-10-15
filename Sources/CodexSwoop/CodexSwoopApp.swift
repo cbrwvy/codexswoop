@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.popoverAnchor.contentHeightChanged($0)
         }).preferredColorScheme(testColorScheme))
         // NSPopover consumes preferredContentSize, not only the hosting view's intrinsic size.
-        menuController.sizingOptions = [.standardBounds, .preferredContentSize]
+        menuController.sizingOptions = [.preferredContentSize]
         popover.contentViewController = menuController
         Task {
             await manager.reload()
@@ -193,6 +193,10 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
     private var pendingRefresh: Task<Void, Never>?
     private var previousFrameNotifications = false
     private var previousBoundsNotifications = false
+    private var trackingMenus = Set<ObjectIdentifier>()
+    private var deferredRefresh = false
+    private var deferredSize: NSSize?
+    private var lastAnchor: NSRect?
 
     init(popover: NSPopover, maximumHeightChanged: @escaping (CGFloat) -> Void = { _ in },
          currentButton: @escaping () -> NSView?) {
@@ -210,6 +214,7 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         observeContentWindow()
         constrainFrame(button, window: window)
+        lastAnchor = window.convertToScreen(button.convert(button.bounds, to: nil))
         return popover.isShown
     }
 
@@ -227,16 +232,33 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
             (NSWindow.didChangeBackingPropertiesNotification, window),
             (NSWindow.didChangeScreenNotification, window), (NSWindow.willCloseNotification, window),
             (NSWindow.didChangeOcclusionStateNotification, window),
-            (NSApplication.didChangeScreenParametersNotification, nil)
+            (NSApplication.didChangeScreenParametersNotification, nil),
+            (.swoopMenuBeganTracking, nil), (.swoopMenuEndedTracking, nil)
         ]
         for (name, object) in events {
-            observers.append(NotificationCenter.default.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.scheduleRefresh() }
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: object, queue: .main) { [weak self] event in
+                let menuID = (event.object as? NSMenu).map(ObjectIdentifier.init)
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if let menuID, name == .swoopMenuBeganTracking {
+                        self.trackingMenus.insert(menuID); return
+                    }
+                    if let menuID, name == .swoopMenuEndedTracking {
+                        self.trackingMenus.remove(menuID)
+                        if self.trackingMenus.isEmpty {
+                            if let size = self.deferredSize { self.deferredSize = nil; self.updateContentSize(size) }
+                            self.deferredRefresh = false; self.scheduleRefresh()
+                        }
+                        return
+                    }
+                    self.scheduleRefresh()
+                }
             })
         }
     }
 
     private func scheduleRefresh() {
+        guard trackingMenus.isEmpty else { deferredRefresh = true; return }
         guard popover.isShown, pendingRefresh == nil else { return }
         // Coalesce a layout burst, then read the actual button after AppKit finishes layout.
         pendingRefresh = Task { @MainActor [weak self] in
@@ -248,6 +270,7 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
     }
 
     func refresh() {
+        guard trackingMenus.isEmpty else { deferredRefresh = true; return }
         guard popover.isShown else { stopObserving(); return }
         guard let button = currentButton(), let window = button.window,
               window.isVisible, !button.isHiddenOrHasHiddenAncestor, !button.bounds.isEmpty else {
@@ -258,7 +281,11 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         observe(button, window: window)
         updateMaximumHeight(button, window: window)
         // On an already visible popover this updates its anchor; it does not reopen it.
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        if anchor != lastAnchor || popover.positioningRect != button.bounds {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            lastAnchor = anchor
+        }
         observeContentWindow()
         constrainFrame(button, window: window)
     }
@@ -281,6 +308,7 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
             }
     }
     private func updateContentSize(_ size: NSSize) {
+        guard trackingMenus.isEmpty else { deferredSize = size; return }
         guard popover.isShown, size.width > 1, size.height > 1 else { return }
         if abs(popover.contentSize.height - size.height) > 0.5 || abs(popover.contentSize.width - size.width) > 0.5 {
             popover.contentSize = size
@@ -297,6 +325,7 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         }
     }
     private func constrainFrame(_ button: NSView, window: NSWindow) {
+        guard trackingMenus.isEmpty else { deferredRefresh = true; return }
         guard let screen = window.screen, let contentWindow = popover.contentViewController?.view.window else { return }
         let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
         let frame = MenuPopoverGeometry.constrainedFrame(contentWindow.frame, anchor: anchor, visibleFrame: screen.visibleFrame)
@@ -314,10 +343,16 @@ final class StatusPopoverAnchor: NSObject, NSPopoverDelegate {
         observers = []
         if let contentObserver { NotificationCenter.default.removeObserver(contentObserver) }
         contentObserver = nil; observedPopoverWindow = nil
+        trackingMenus = []; deferredSize = nil; deferredRefresh = false; lastAnchor = nil
         observedButton?.postsFrameChangedNotifications = previousFrameNotifications
         observedButton?.postsBoundsChangedNotifications = previousBoundsNotifications
         observedButton = nil; observedWindow = nil
     }
+}
+
+extension Notification.Name {
+    static let swoopMenuBeganTracking = Notification.Name("CodexSwoop.menuBeganTracking")
+    static let swoopMenuEndedTracking = Notification.Name("CodexSwoop.menuEndedTracking")
 }
 
 @MainActor

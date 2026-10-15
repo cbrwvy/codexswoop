@@ -496,28 +496,10 @@ public actor NativeDesktopSystem: DesktopSystem {
         guard FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/Info.plist").path) else {
             throw EnvironmentError.launchServicesFailed(-10814) // kLSApplicationNotFoundErr
         }
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = true
-        configuration.activates = false
-        configuration.allowsRunningApplicationSubstitution = false
-        configuration.promptsUserIfNeeded = false
-        configuration.addsToRecentItems = false
-        configuration.arguments = ["--user-data-dir=" + paths.electron]
-        configuration.environment = environment.merging(["CODEX_HOME": paths.home,
-            "CODEX_ELECTRON_USER_DATA_PATH": paths.electron]) { _, new in new }
-        return try await withCheckedThrowingContinuation { continuation in
-            let completion = NativeLaunchCompletion(continuation)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                completion.finish(.failure(EnvironmentError.launchServicesFailed(-1001)))
-            }
-            NSWorkspace.shared.openApplication(at: app, configuration: configuration) { running, error in
-                guard error == nil, let running, !running.isTerminated, let date = running.launchDate else {
-                    completion.finish(.failure(EnvironmentError.launchServicesFailed((error as NSError?)?.code ?? -1)))
-                    return
-                }
-                completion.finish(.success((running.processIdentifier, date)))
-            }
-        }
+        do {
+            return try await LaunchServicesRequest.open(app, arguments: ["--user-data-dir=" + paths.electron],
+                environment: environment.merging(["CODEX_HOME": paths.home, "CODEX_ELECTRON_USER_DATA_PATH": paths.electron]) { _, new in new })
+        } catch { throw EnvironmentError.launchServicesFailed((error as NSError).code) }
     }
 
     public func instanceInventory(associations: [EnvironmentAssociation]) async throws -> DesktopInstanceInventory {
@@ -813,15 +795,6 @@ public actor NativeDesktopSystem: DesktopSystem {
     }
 }
 
-private final class NativeLaunchCompletion: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<(Int32, Date), any Error>?
-    init(_ continuation: CheckedContinuation<(Int32, Date), any Error>) { self.continuation = continuation }
-    func finish(_ result: Result<(Int32, Date), any Error>) {
-        lock.lock(); let current = continuation; continuation = nil; lock.unlock()
-        current?.resume(with: result)
-    }
-}
 
 private final class CommandBuffer: @unchecked Sendable {
     private let lock = NSLock()

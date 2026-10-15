@@ -12,7 +12,10 @@ struct MenuBarView: View {
     private enum FocusTarget: Hashable { case add, settings, profile(UUID), manage(UUID) }
     @FocusState private var focused: FocusTarget?
     @ViewState<[FocusTarget: Int]> private var menuActivations: [FocusTarget: Int] = [:]
-    @ViewState<CGFloat> private var measuredHeight: CGFloat = 560
+    // Bootstrap small; the unconstrained document supplies its own natural height.
+    @ViewState<CGFloat> private var measuredHeight: CGFloat = 1
+    @ViewState private var trackingMenus = Set<ObjectIdentifier>()
+    @ViewState<CGFloat?> private var deferredHeight: CGFloat? = nil
     private struct Editor: Identifiable { let id = UUID(); let profile: AccountProfile? }
     private let maximumHeight: CGFloat?
     private let contentHeightChanged: ((CGFloat) -> Void)?
@@ -31,6 +34,15 @@ struct MenuBarView: View {
         }.frame(width: 320, height: min(measuredHeight, heightLimit))
         .onChange(of: heightLimit) { _, _ in contentHeightChanged?(min(measuredHeight, heightLimit)) }
         .onAppear { restoreFocus() }
+        .onReceive(NotificationCenter.default.publisher(for: .swoopMenuBeganTracking)) { event in
+            if let menu = event.object as? NSMenu { trackingMenus.insert(ObjectIdentifier(menu)) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .swoopMenuEndedTracking)) { event in
+            if let menu = event.object as? NSMenu { trackingMenus.remove(ObjectIdentifier(menu)) }
+            if trackingMenus.isEmpty, let height = deferredHeight {
+                deferredHeight = nil; updateMeasuredHeight(height)
+            }
+        }
         .onChange(of: manager.storageReady) { _, _ in restoreFocus() }
         .onChange(of: manager.isBusy) { _, busy in if !busy { restoreFocus() } }
         .onReceive(NotificationCenter.default.publisher(for: NSPopover.didShowNotification)) { _ in
@@ -63,6 +75,9 @@ struct MenuBarView: View {
     }
 
     private func updateMeasuredHeight(_ height: CGFloat) {
+        // Keep the hosting view's intrinsic frame stable too: AppKit can resize a
+        // popover from that frame before the explicit native content-size handoff.
+        guard trackingMenus.isEmpty else { deferredHeight = height; return }
         guard height > 1, abs(height - measuredHeight) > 0.5 else { return }
         measuredHeight = height
         contentHeightChanged?(min(height, heightLimit))
@@ -241,8 +256,21 @@ struct MenuBarView: View {
     var symbol: String? = nil
     let activation: Int
     let items: [AccountMenuItem]
-    @MainActor final class Coordinator: NSObject {
+    @MainActor final class Coordinator: NSObject, NSMenuDelegate {
         var activation = 0
+        var tracking = false
+        var pendingUpdate: (() -> Void)?
+        var signature: [String] = []
+        func menuWillOpen(_ menu: NSMenu) {
+            tracking = true
+            NotificationCenter.default.post(name: .swoopMenuBeganTracking, object: menu)
+        }
+        func menuDidClose(_ menu: NSMenu) {
+            tracking = false
+            NotificationCenter.default.post(name: .swoopMenuEndedTracking, object: menu)
+            let update = pendingUpdate; pendingUpdate = nil
+            DispatchQueue.main.async { update?() }
+        }
         @objc func selectedAccountItem(_ sender: NSPopUpButton) {
             (sender.selectedItem as? AccountActionMenuItem)?.invokeAccountAction(sender)
         }
@@ -263,24 +291,41 @@ struct MenuBarView: View {
         CGSize(width: max(0, proposal.width ?? (symbol == nil ? 120 : 24)), height: 22)
     }
     func updateNSView(_ button: NSPopUpButton, context: Context) {
-        let menu = NSMenu(); menu.autoenablesItems = false
-        menu.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: ""))
-        for item in items {
-            if item.action == nil { menu.addItem(.separator()); continue }
-            let entry = AccountActionMenuItem(title: item.title, action: nil, keyEquivalent: "")
-            entry.handler = item.action; entry.isEnabled = item.enabled; entry.toolTip = item.hint
-            menu.addItem(entry)
+        configure(button, coordinator: context.coordinator)
+    }
+    fileprivate func configure(_ button: NSPopUpButton, coordinator: Coordinator) {
+        if coordinator.tracking {
+            coordinator.pendingUpdate = { [weak button, weak coordinator] in
+                guard let button, let coordinator else { return }; configure(button, coordinator: coordinator)
+            }
+            return
         }
-        button.target = context.coordinator
+        let signature = [title, symbol ?? ""] + items.map { "\($0.title)|\($0.enabled)|\($0.hint ?? "")|\($0.action != nil)" }
+        if coordinator.signature != signature || button.menu == nil {
+            let menu = NSMenu(); menu.autoenablesItems = false; menu.delegate = coordinator
+            menu.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: ""))
+            for item in items {
+                if item.action == nil { menu.addItem(.separator()); continue }
+                let entry = AccountActionMenuItem(title: item.title, action: nil, keyEquivalent: "")
+                entry.handler = item.action; entry.isEnabled = item.enabled; entry.toolTip = item.hint
+                menu.addItem(entry)
+            }
+            button.menu = menu; coordinator.signature = signature
+        } else {
+            for (entry, item) in zip(button.menu!.items.dropFirst(), items) {
+                (entry as? AccountActionMenuItem)?.handler = item.action
+            }
+        }
+        button.target = coordinator
         button.action = #selector(Coordinator.selectedAccountItem(_:))
-        button.menu = menu; button.toolTip = title
+        button.toolTip = title
         let display = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         display.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
         (button.cell as? NSPopUpButtonCell)?.menuItem = display
         button.imagePosition = symbol == nil ? .noImage : .imageOnly
         button.setAccessibilityLabel(label); button.setAccessibilityValue(value)
-        if context.coordinator.activation != activation {
-            context.coordinator.activation = activation
+        if coordinator.activation != activation {
+            coordinator.activation = activation
             DispatchQueue.main.async { [weak button] in button?.performClick(nil) }
         }
     }
@@ -310,6 +355,19 @@ struct MenuBarView: View {
         button.selectItem(at: 1)
         precondition(NSApplication.shared.sendAction(button.action!, to: button.target, from: button))
         precondition(invoked == 12, "Popup control must route the selected menu item")
+        let original = NativeAccountMenu(title: "Fixture", label: "Fixture", activation: 0,
+            items: [AccountMenuItem(title: "Original", action: { invoked += 100 })])
+        original.configure(button, coordinator: coordinator)
+        let tracking = button.menu!
+        coordinator.menuWillOpen(tracking)
+        let changed = NativeAccountMenu(title: "Fixture", label: "Fixture", activation: 0,
+            items: [AccountMenuItem(title: "Changed", action: { invoked += 200 })])
+        changed.configure(button, coordinator: coordinator)
+        precondition(button.menu === tracking && button.menu?.item(at: 1)?.title == "Original",
+            "SwiftUI must not replace the menu during a tracking session")
+        coordinator.menuDidClose(tracking)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        precondition(button.menu !== tracking && button.menu?.item(at: 1)?.title == "Changed")
         print("PASS native popup selection, Objective-C dispatch, disabled-action guard and retained action identity")
     }
 }

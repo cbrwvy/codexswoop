@@ -76,3 +76,4 @@ opening-operation.lock
 
 # Immutable unresolved opening evidence is private runtime metadata.
 UnresolvedOpeningEpoch/
+UnresolvedLaunchOpening-*/

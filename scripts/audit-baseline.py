@@ -50,7 +50,7 @@ DOCUMENT_IDENTIFIERS = {
 EXCLUDED = ["build/research/private-report.json", ".build/object", "Profiles/fixture/data", "auth.json",
             "profiles.json", "environments.json", "managed-environments.json", "managed-environments.backup.json",
             "managed-environments-damaged-fixture.json", "private-reports/report.md", ".env", "key.p12",
-            "retained-environments.json", "setup-journal.json", "opening-journal.json", "opening-journal-watermark.json", "opening-operation.lock", "SetupBackups/snapshot.json", "UnresolvedOpeningEpoch/manifest.json", "Cookies",
+            "retained-environments.json", "setup-journal.json", "opening-journal.json", "opening-journal-watermark.json", "opening-operation.lock", "SetupBackups/snapshot.json", "UnresolvedOpeningEpoch/manifest.json", "UnresolvedLaunchOpening-fixture/manifest.json", "Cookies",
             ".idea/codexswoop.iml", "refresh-tokens.json", "credentials.json", "export.keychain-db", "export.pfx", "trace.har",
             "diagnostic.ips", "data.sqlite", "old.bak", "local.app/Contents/Info.plist", "trial.dmg", "backup.zip"]
 
@@ -62,7 +62,7 @@ def git(*args):
 def private_name(name):
     path = Path(name)
     lower = path.name.lower()
-    return (bool(set(path.parts) & PRIVATE_PARTS) or path.name in RUNTIME_NAMES
+    return ((bool(set(path.parts) & PRIVATE_PARTS) or any(part.startswith("UnresolvedLaunchOpening-") for part in path.parts)) or path.name in RUNTIME_NAMES
             or lower.startswith(("auth.", "cookies", "credentials", ".env"))
             or lower.endswith((".pem", ".key", ".p12", ".pfx", ".keychain", ".keychain-db", ".log", ".har", ".bak"))
             or (lower.endswith(".json") and any(word in lower for word in ("token", "-damaged-"))))

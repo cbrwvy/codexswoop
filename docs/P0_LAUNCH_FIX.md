@@ -57,7 +57,7 @@ explicitly hands measured height to native contentSize after the SwiftUI layout
 transaction (preferredContentSize alone was observed to stay unapplied), measures
 native chrome after showing, tracks content resizing and clamps positioning
 below the menu bar. Compatibility details stay in Settings; the footer retains
-version and short status. No screen coordinates are cached or polled.
+version and short status. Geometry is resampled on native events without timer polling.
 
 ## Existing launch-only pending operation
 
@@ -67,39 +67,63 @@ An unrelated present instance, old socket error or missing historical process ca
 prove settlement. RC 3's original supersession is already consumed, so rerunning it
 cannot retire this later operation. Do not replay, clear, complete or reinitialize it.
 
-A separately approved one-shot retirement must first preserve the exact current
-pair AND existing archive, all allowlisted metadata, hashes, directory identities
-and `historicalOutcome: unknown` in a new immutable archive. Consent must name the
-current store, operation and pair hash. Both existing locks must span fresh native
-inventory/signature/boot/catalog proof, archival verification and any pair change;
-Swoop must be stopped normally by separate consent. Original receiver absence and
-lack of delayed dispatch must be established, or the operator must explicitly accept
-an unresolved historical outcome. A distinct retirement provenance/commit record
-must bind the new pair to both archives; it must never call historical `complete()`
-or overwrite the old archive. This is the exact recovery write scope for separate
-review, not an enabled Reset or permission to run it. The shipped RC 3 helper
-intentionally refuses this later launch-only case. No retirement was applied.
+Build 7 implements a separately invoked, one-shot retirement for this exact shape:
+schema 3, Open Separately, no target receiver or other instances, and one launch
+intent without a receipt. `--inspect-launch-only --operation OPERATION_UUID` is
+read-only. Applying requires separate human authorization and the exact token:
+
+```sh
+codexswoop-recovery --retire-launch-only \
+  --consent 'retire-launch-only:STORE_UUID:OPERATION_UUID:JOURNAL_SHA256' \
+  --accept-historical-outcome-unknown
+```
+
+Both existing locks span fresh strict native inventory, boot/build/signature and
+catalog/root proof, archival verification and commit. Swoop must be stopped normally
+by separate consent. This old launch has no captured receiver; accepting its unknown
+historical outcome does not prove absence of a delayed dispatch or grant a retry.
+Unknown/unbound current ownership still blocks. No process effect is performed.
+
+The only replaced files are the active journal and watermark. A separate private
+`UnresolvedLaunchOpening-<operation UUID>/` archive preserves their exact bytes and
+the allowlisted catalogs. Its manifest chains the prior recovery provenance and
+archive directory identity. `UnresolvedOpeningEpoch/`, catalog files and environment
+directories are preserved. The same durable watermark-first protocol publishes a
+schema-4 idle epoch with no settled operation and `historicalOutcome: unknown`.
+Older readers reject schema 4. Only the same consent can resume exact prepared
+bytes; a committed rerun cannot erase subsequent results or pending operations.
+There is no startup migration or Reset. No real retirement was applied.
 
 Real two-profile opening/activation/repetition after restart remains an acceptance
 gate requiring separate recovery, installation and lifecycle authorization.
 
+## CI and UI regression correction
+
+The latest remote HEAD includes the missing-bundle guard. Its negative launch test
+passes; the hostless SwiftPM XCTest process instead terminates with signal 5 at
+the positive LaunchServices test. No uploaded stack establishes a deeper platform
+cause. The test now compiles the same production request implementation into a
+physical-main-thread AppKit worker and checks its actual receiver and both roots.
+The probe self-exits; no real Codex is controlled. The test remains enabled.
+
+Native menu updates previously replaced NSMenu on every SwiftUI update. Window
+observers also reasserted popover.show with an unchanged anchor. Menu identity is now
+retained, updates defer during tracking, and an unchanged anchor is not reasserted.
+Measured SwiftUI height and native size/frame updates defer until tracking ends,
+including the intrinsic hosting-view resize path. The document measures its natural
+height from a minimal bootstrap rather than a 560-point initial viewport.
+
 ## Local validation
 
-- The socket-path XCTest first failed against RC 3, then passed after correction.
-- `scripts/check.sh --require-xctest`: 535 CoreChecks, 101 IsolationLab tests,
-  87 recovery fault stages / 4032 assertions, 20 ReleaseTooling tests, 121 SwiftPM
-  XCTest and 121 native XCTest; universal native Debug/Release and Archive passed.
-- 222 account/setup renders passed. After the final menu-only sizing correction,
-  24 focused menu renders passed; final Debug and Release app bundles were rebuilt.
-- Native AppKit QA exercises actual status items, anchor movement, screen containment,
-  a 240-point menu budget, footer scrolling and diagnostic size changes.
-- Computer Use confirmed the installed RC 3 clipping and both disabled opening menus.
-  The corrected isolated GUI displays two linked fictional profiles, both enabled
-  context menus, full header/footer and concrete diagnostics. Its adapter is synthetic.
-- No real opening/activation/quit, pending retirement, app replacement or account
-  operation was performed. Real switching remains NOT TESTED.
+Focused checks cover actual LaunchServices delivery to a disposable app, 222 setup
+renders, native menu dispatch/identity, actual status-item movement, bounded scrolling,
+diagnostic growth/shrink and unchanged geometry during tracking. Recovery checks
+exercise 87 write stages with thrown errors and abrupt worker exits for each recovery
+mode, preserving both profiles, catalogs and the prior archive.
 
-The final local candidate remains version 1.0.0 build 6, labeled P0 Final in its
-packaging directory and bundle metadata. Its source commit, file hashes and DMG
-checksum are supplied in the local candidate manifest and PR handoff. It is ad hoc
-signed and unnotarized; it is not a GitHub Release or real runtime acceptance.
+The final validation totals and candidate hashes are recorded in the PR handoff.
+Build 7 is version 1.0.0, arm64, ad hoc signed and unnotarized, with the embedded
+recovery helper. The candidate manifest binds it to the exact source commit.
+No real opening/activation/quit, pending retirement, app replacement or account
+operation was performed. Real switching remains NOT TESTED; product acceptance
+requires separately authorized recovery, installation and real lifecycle checks.

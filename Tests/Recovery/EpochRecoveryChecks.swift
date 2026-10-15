@@ -241,6 +241,7 @@ private final class Stages: @unchecked Sendable {
     }
     static func main() async {
         do {
+            if CommandLine.arguments.contains("--retirement-worker") { try await retirementWorker(); return }
             if CommandLine.arguments.count > 1 { try await worker(CommandLine.arguments); return }
             let swoopID = "io.github.cbrwvy.codexswoop"
             try require(!OpeningEpochRecovery.requiresSwoopShutdown(pid: 100, bundleID: swoopID, executable: "codexswoop-recovery", terminated: false, inspectorPID: 100), "own nested helper is not the Swoop GUI")
@@ -343,7 +344,147 @@ private final class Stages: @unchecked Sendable {
                     try require(await fixture.system.effects.isEmpty, "synthetic process effects remain empty")
                 }
             }
+            try await launchOnlyRetirementChecks()
             print("PASS epoch recovery: \(hooks.count) fault stages, thrown I/O faults and abrupt QA-process exits, \(count) assertions")
         } catch { print("FAIL epoch recovery at \(context): \(error)"); exit(1) }
+    }
+}
+
+
+extension EpochRecoveryChecks {
+    static func makeLaunchOnly() async throws -> (ReleaseFixture, PendingOpeningOperation) {
+        let (f, old) = try await make()
+        let original = engine(f.validator.managedRoot, record: old)
+        let token = try await original.run(consent: nil).consent
+        _ = try await original.run(consent: token)
+        await f.system.removeSyntheticInstance(f.associations[1].environmentID)
+        let driver = DesktopSwitchingDriver(bootSession: { "synthetic-boot" }, store: f.store, validator: f.validator, system: f.system)
+        let plan = try await driver.planEnvironmentAccount(profile: f.profiles[1], mode: .openSeparately)
+        let record = try await PendingOpeningOperation(scope: EnvironmentOperationScope(plan: plan, managed: f.store.inspectManagedEnvironments()),
+            bootSession: "synthetic-boot", buildFingerprint: f.system.openingBuildFingerprint())
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        try journal.begin(record); try journal.append(.launch, operation: record.id); journal.abandon()
+        return (f, record)
+    }
+    static func retirementEngine(_ root: URL, record: PendingOpeningOperation) -> OpeningEpochEngine {
+        var tool = engine(root, record: record); tool.retirementOperation = record.id; return tool
+    }
+    static func oldArchive(_ root: URL) throws -> [String: ReplacementFileSnapshot] {
+        let archive = root.appendingPathComponent(OpeningEpochEngine.archiveName)
+        var values: [String: ReplacementFileSnapshot] = [:]
+        for name in OpeningEpochEngine.catalogs + OpeningEpochEngine.pair + ["manifest.json", "epoch-commit.json"] {
+            values[name] = try ReplacementFileSnapshot.read(archive.appendingPathComponent(name), optional: OpeningEpochEngine.catalogs.contains(name))
+        }
+        return values
+    }
+    static func retirementWorker() async throws {
+        let args = CommandLine.arguments
+        guard args.count == 5, args[2].hasPrefix("/private/tmp/codexswoop-epoch-qa-"), let operation = UUID(uuidString: args[3]) else { exit(2) }
+        let root = URL(fileURLWithPath: args[2]), archive = root.appendingPathComponent(OpeningEpochEngine.retirementArchive(operation))
+        let bytes = try ((try? pair(archive)) ?? pair(root))
+        let record = try OpeningOperationJournal.decodePair(bytes[0], bytes[1]).pending!
+        var tool = retirementEngine(root, record: record)
+        let token = try await tool.run(consent: nil).consent
+        tool.fault = { if $0 == args[4] { _exit(73) } }
+        _ = try await tool.run(consent: token); exit(9)
+    }
+    static func launchOnlyRetirementChecks() async throws {
+        context = "launch-only retirement"
+        let (seed, record) = try await makeLaunchOnly()
+        defer { try? FileManager.default.removeItem(at: seed.root) }
+        let root = seed.validator.managedRoot, prior = try oldArchive(root), original = try pair(root)
+        var tool = retirementEngine(root, record: record)
+        let review = try await tool.run(consent: nil)
+        try require(review.consent.hasPrefix("retire-launch-only:"), "distinct operation-bound consent")
+        try require(try pair(root) == original, "launch-only inspection is read-only")
+        let stages = Stages(); tool.fault = { stages.add($0) }
+        _ = try await tool.run(consent: review.consent)
+        let current = try OpeningOperationJournal.decodePair(pair(root)[0], pair(root)[1])
+        try require(current.schemaVersion == 4 && current.pending == nil && current.settled == nil, "retirement never declares old success")
+        try require(try oldArchive(root) == prior, "previous archive bytes and identities preserved")
+        try require(try pair(tool.archive) == original, "new archive retains exact schema-3 pair")
+        let before = try await seed.store.inspectAccountSetup()
+        try await seed.open()
+        try require(try await seed.store.inspectAccountSetup() == before, "opening after retirement preserves both profiles and roots")
+        let later = try pair(root)
+        try require(try await tool.run(consent: review.consent).alreadyApplied && (try pair(root)) == later, "same retirement cannot erase later outcomes")
+        // Include both prepared-pair and partial-archive resume boundaries.
+        for stop in ["before-write-archive-epoch-commit.json", "before-write-archive-manifest.json"] {
+            let (f, r) = try await makeLaunchOnly(); defer { try? FileManager.default.removeItem(at: f.root) }
+            var t = retirementEngine(f.validator.managedRoot, record: r)
+            let token = try await t.run(consent: nil).consent
+            t.fault = { if $0 == stop { throw Failure.injected } }
+            do { _ = try await t.run(consent: token) } catch Failure.injected { }
+            t.fault = { stages.add($0) }; _ = try await t.run(consent: token)
+        }
+        let normal = Set(stages.values.filter { !$0.contains("existing-") && !$0.contains("resume-prepared") })
+        let hooks = Set(stages.values).sorted()
+        for hook in hooks {
+            for abrupt in [false, true] {
+                context = "retirement fault \(hook) abrupt=\(abrupt)"
+                let (f, r) = try await makeLaunchOnly(); defer { try? FileManager.default.removeItem(at: f.root) }
+                let root = f.validator.managedRoot, original = try pair(root), prior = try oldArchive(root)
+                var t = retirementEngine(root, record: r); let token = try await t.run(consent: nil).consent
+                if !normal.contains(hook) {
+                    let stop = hook.contains("resume-prepared") ? "before-write-archive-epoch-commit.json" : "before-write-archive-manifest.json"
+                    t.fault = { if $0 == stop { throw Failure.injected } }
+                    do { _ = try await t.run(consent: token) } catch Failure.injected { }
+                }
+                if abrupt {
+                    let p = Process(); p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+                    p.arguments = ["--retirement-worker", root.path, r.id.uuidString, hook]
+                    p.standardInput = FileHandle.nullDevice; p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+                    try p.run(); p.waitUntilExit(); try require(p.terminationStatus == 73, "abrupt retirement boundary reached")
+                } else {
+                    t.fault = { if $0 == hook { throw Failure.injected } }
+                    do { _ = try await t.run(consent: token); throw Failure.assertion("retirement fault not reached") }
+                    catch Failure.injected { count += 1 }
+                }
+                try require(try oldArchive(root) == prior, "old archive untouched after interruption")
+                let interrupted = try pair(root)
+                let resume = retirementEngine(root, record: r)
+                _ = try await resume.run(consent: nil)
+                try require(try pair(root) == interrupted, "read-only retirement inspection never resumes writes")
+                do { _ = try await resume.run(consent: "wrong"); throw Failure.assertion("unbound consent accepted") }
+                catch OpeningEpochError.consentRequired { count += 1 }
+                _ = try await resume.run(consent: token)
+                try require(try pair(resume.archive) == original, "exact original pair survives fault and resume")
+                try require(try oldArchive(root) == prior, "old archive remains unchanged after resume")
+                try require(try OpeningOperationJournal(root: root).pending() == nil, "schema-4 provenance is readable only after durable commit")
+                try require(await f.system.effects.isEmpty, "retirement has no official process effects")
+            }
+        }
+        for failure in ["running", "boot", "build", "signature", "unknown", "unstable", "prior-change", "catalog-change", "wrong-operation"] {
+            context = "retirement refusal: " + failure
+            let (f, r) = try await makeLaunchOnly(); defer { try? FileManager.default.removeItem(at: f.root) }
+            let root = f.validator.managedRoot, original = try pair(root)
+            var t = retirementEngine(root, record: r); let token = try await t.run(consent: nil).consent
+            let originalSample = t.sample, calls = Stages()
+            if failure == "wrong-operation" { t.retirementOperation = UUID() }
+            t.sample = { references, pids in
+                calls.add("sample")
+                if failure == "signature" { throw EnvironmentError.incompatibleBuild }
+                let sample = try await originalSample(references, pids)
+                if failure == "prior-change" {
+                    let p = root.appendingPathComponent(OpeningEpochEngine.archiveName + "/manifest.json")
+                    try AtomicMetadataWriter().write(Data(contentsOf: p), to: p)
+                }
+                if failure == "catalog-change" {
+                    let p = root.appendingPathComponent("profiles.json")
+                    try AtomicMetadataWriter().write(Data(contentsOf: p), to: p)
+                }
+                return OpeningEpochObservation(boot: failure == "boot" ? "other-boot" : sample.boot,
+                    build: failure == "build" ? OpeningBuildFingerprint(version: "changed", build: "changed", signingRequirement: r.buildFingerprint.signingRequirement,
+                        archiveSHA256: r.buildFingerprint.archiveSHA256, codeDirectoryHash: r.buildFingerprint.codeDirectoryHash,
+                        bundleGenerationSHA256: r.buildFingerprint.bundleGenerationSHA256) : sample.build,
+                    inventory: DesktopInstanceInventory(entries: failure == "unstable" && calls.values.count > 1 ? [] : sample.inventory.entries,
+                        unknownCount: failure == "unknown" ? 1 : 0), originalPIDsAbsent: true, swoopRunning: failure == "running")
+            }
+            do { _ = try await t.run(consent: token); throw Failure.assertion("unsafe launch retirement accepted") }
+            catch is Failure { throw Failure.assertion("unsafe retirement: " + failure) }
+            catch { count += 1 }
+            try require(try pair(root) == original, "refused retirement preserves pending")
+        }
+        print("PASS launch-only retirement: \(hooks.count) fault stages, thrown and abrupt worker exits; prior archive/catalogs/profiles preserved")
     }
 }

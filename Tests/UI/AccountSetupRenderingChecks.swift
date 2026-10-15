@@ -107,7 +107,9 @@ import ServiceManagement
                 host.appearance = NSApplication.shared.appearance
                 RunLoop.main.run(until: Date().addingTimeInterval(0.1))
                 let size = host.fittingSize
-                precondition(size.width >= 300 && size.width <= 560 && size.height > 100 && size.height < 800, "Invalid layout \(name): \(size)")
+                // A menu starts with a minimal viewport until its document is attached.
+                // The settled window-backed size below remains the acceptance assertion.
+                precondition(size.width >= 300 && size.width <= 560 && size.height > 0 && size.height < 800, "Invalid layout \(name): \(size)")
                 if name.hasPrefix("bounded-warning-") {
                     let limit = CGFloat(Int(name.split(separator: "-").last!)!)
                     precondition(size.height <= limit + 1, "Menu exceeded synthetic screen budget")

@@ -23,7 +23,10 @@ if [ "${1:-}" = --with-menu-bar ]; then
 swiftc -swift-version 6 -D DEBUG -D SETUP_UI_CHECKS -parse-as-library \
   -I "$output/module" -L "$output/module" -lCodexSwoopCore -Xlinker -rpath -Xlinker "$output/module" \
   Sources/CodexSwoop/*.swift Tests/UI/PopoverAnchorChecks.swift -o "$output/popover-anchor-checks"
-"$output/popover-anchor-checks" --test-storage-root "$fixture"
+# Rendering checks deliberately leave a pending setup-recovery fixture. Geometry
+# checks need their own clean store rather than bypassing that recovery barrier.
+mkdir -m 700 "$fixture/anchor"
+"$output/popover-anchor-checks" --test-storage-root "$fixture/anchor"
 else
   echo 'SKIP live AppKit anchor checks: use --with-menu-bar in a logged-in macOS desktop session'
 fi

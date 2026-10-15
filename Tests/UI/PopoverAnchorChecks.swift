@@ -97,7 +97,7 @@ import CodexSwoopCore
         }
         manager.previewOpeningReviewForChecks(.environment(.backendNotReady))
         let menu = NSHostingController(rootView: MenuBarView(manager: manager, maximumHeight: 240, contentHeightChanged: { live.contentHeightChanged($0) }))
-        menu.sizingOptions = [.standardBounds, .preferredContentSize]
+        menu.sizingOptions = [.preferredContentSize]
         popover.contentViewController = menu
         precondition(live.show()); settle(); settle()
         precondition(popover.contentSize.height <= 241)
@@ -119,12 +119,20 @@ import CodexSwoopCore
         precondition(popover.contentSize.height <= 241)
         popover.performClose(nil)
         let growingMenu = NSHostingController(rootView: MenuBarView(manager: manager, maximumHeight: 560, contentHeightChanged: { live.contentHeightChanged($0) }))
-        growingMenu.sizingOptions = [.standardBounds, .preferredContentSize]
+        growingMenu.sizingOptions = [.preferredContentSize]
         popover.contentViewController = growingMenu
         precondition(live.show()); settle(); settle()
         let compactHeight = popover.contentSize.height
         precondition(compactHeight < 500, "A short menu must shrink to its measured content")
+        let tracking = NSMenu(title: "Fixture tracking")
+        NotificationCenter.default.post(name: .swoopMenuBeganTracking, object: tracking)
+        let stableFrame = growingMenu.view.window!.frame
         manager.errorMessage = String(repeating: "Synthetic diagnostic detail. ", count: 25); settle(); settle()
+        live.refresh()
+        precondition(popover.contentSize.height == compactHeight && growingMenu.view.window!.frame == stableFrame,
+            "Resize/reanchor must wait until the native menu tracking session ends")
+        NotificationCenter.default.post(name: .swoopMenuEndedTracking, object: tracking)
+        settle(); settle()
         let diagnostics = "Sizing QA compact=\(compactHeight), grown=\(popover.contentSize.height), preferred=\(growingMenu.preferredContentSize), fitting=\(growingMenu.view.fittingSize), documents=\(scrollViews(growingMenu.view).map { $0.documentView?.bounds.height ?? 0 })\n"
         FileHandle.standardError.write(Data(diagnostics.utf8))
         precondition(popover.contentSize.height > compactHeight, "Diagnostic growth must update the native content height")

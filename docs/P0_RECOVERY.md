@@ -6,8 +6,10 @@ and creates a different journal store UUID. It never calls `complete()` for the
 old operation and never claims that activation, launch, switching or account
 verification succeeded. The manifest records `historicalOutcome: unknown`.
 
-Development and QA use synthetic stores only. The real migration has **not been
-performed**. The earlier `build/p0-live-preflight.log` is historical evidence: its
+This document describes the original RC 3 transition. That separately authorized
+transition was completed previously; its archive remains immutable. Development
+and new retirement QA use synthetic stores only. The later schema-3 launch-only
+retirement has **not been performed**; see [P0_LAUNCH_FIX.md](P0_LAUNCH_FIX.md). The earlier `build/p0-live-preflight.log` is historical evidence: its
 process generations and readiness must be sampled again at application time.
 
 ## Invocation and consent
