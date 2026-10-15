@@ -135,10 +135,18 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
         let home = ProcessInfo.processInfo.environment["CODEX_HOME"]!
         let electron = ProcessInfo.processInfo.environment["CODEX_ELECTRON_USER_DATA_PATH"]!
         let match = ProcessInfo.processInfo.arguments.contains("--user-data-dir=" + electron)
-        let result = ["home": home, "electron": electron, "argumentMatches": String(match)]
+        let result = ["home": home, "electron": electron, "argumentMatches": String(match), "pid": String(ProcessInfo.processInfo.processIdentifier)]
         try! JSONSerialization.data(withJSONObject: result).write(to: URL(fileURLWithPath: home).appendingPathComponent("probe-result.json"))
         NSApplication.shared.setActivationPolicy(.prohibited)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { NSApplication.shared.terminate(nil) }
+        // Stay alive until the worker has verified the receiver. Always self-exit
+        // after a bounded deadline even if the worker crashes before acknowledging.
+        let acknowledgement = URL(fileURLWithPath: home).appendingPathComponent("receiver-verified")
+        let deadline = Date().addingTimeInterval(15)
+        _ = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            if FileManager.default.fileExists(atPath: acknowledgement.path) || Date() >= deadline {
+                NSApplication.shared.terminate(nil)
+            }
+        }
         NSApplication.shared.run()
         """.write(to: source, atomically: true, encoding: .utf8)
         let compiler = Process(); compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
@@ -178,6 +186,7 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
         let result = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
         XCTAssertEqual(result["home"], paths.home); XCTAssertEqual(result["electron"], paths.electron)
         XCTAssertEqual(result["argumentMatches"], "true")
+        XCTAssertEqual(result["pid"], (report["pid"] as? Int).map(String.init), "LaunchServices must return the reporting probe itself")
     }
     func testLaunchServicesFailureKeepsConcreteErrorCode() async throws {
         let f = try await fixture()

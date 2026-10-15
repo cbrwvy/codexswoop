@@ -29,11 +29,15 @@ import Foundation
                 environment: ["PATH": "/usr/bin:/bin", "CODEX_HOME": args[2], "CODEX_ELECTRON_USER_DATA_PATH": args[3]])
         }
         trace("receiver returned")
-        let native = NSRunningApplication(processIdentifier: receiver.0)!
+        guard let native = NSRunningApplication(processIdentifier: receiver.0) else {
+            trace("receiver unavailable before verification"); exit(3)
+        }
         guard native.bundleURL?.path == args[1], native.launchDate == receiver.1 else { exit(3) }
         let report: [String: Any] = ["pid": receiver.0, "launchDate": receiver.1.timeIntervalSince1970, "bundle": native.bundleURL!.path]
         try JSONSerialization.data(withJSONObject: report).write(to: URL(fileURLWithPath: args[4]))
-        RunLoop.main.run(until: Date().addingTimeInterval(2.3))
+        try Data().write(to: URL(fileURLWithPath: args[2]).appendingPathComponent("receiver-verified"))
+        let deadline = Date().addingTimeInterval(3)
+        while !native.isTerminated && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
         guard native.isTerminated else { exit(4) }
     }
 }

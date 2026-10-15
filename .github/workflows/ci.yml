@@ -38,6 +38,20 @@ jobs:
           export CLANG_MODULE_CACHE_PATH="$PWD/build/cache/clang"
           export SWIFTPM_MODULECACHE_OVERRIDE="$CLANG_MODULE_CACHE_PATH"
           export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          # Record compiler isolation for the actual callback and the old spelling.
+          mkdir -p build/launch-callback
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          source = Path('Sources/CodexSwoopCore/LaunchServicesRequest.swift').read_text()
+          for label, text in [('fixed', source), ('baseline', source.replace('{ @Sendable running, error in', '{ running, error in'))]:
+              path = Path('build/launch-callback') / (label + '.swift')
+              path.write_text(text)
+              sil = subprocess.check_output(['xcrun', 'swiftc', '-swift-version', '6', '-parse-as-library', '-emit-sil', str(path)], text=True)
+              marker = '// closure #2 in closure #1 in static LaunchServicesRequest.open'
+              block = next((part for part in sil.split('\n\n') if marker in part), 'Callback SIL marker not found')
+              print(label + ' callback isolation:\n' + block[:700], flush=True)
+          PY
           swift test --disable-sandbox --cache-path "$PWD/build/cache/swiftpm" \
             --sdk "$SDKROOT" -Xlinker -platform_version -Xlinker macos -Xlinker 14.0 \
             -Xlinker "$(xcrun --sdk macosx --show-sdk-version)" \

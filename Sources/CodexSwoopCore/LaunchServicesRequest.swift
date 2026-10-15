@@ -18,7 +18,9 @@ enum LaunchServicesRequest {
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 completion.finish(.failure(NSError(domain: "CodexSwoop.LaunchServices", code: -1001)))
             }
-            NSWorkspace.shared.openApplication(at: app, configuration: configuration) { running, error in
+            // AppKit calls this on a concurrent queue. Older SDK imports otherwise
+            // let the closure inherit MainActor and trap before its body executes.
+            NSWorkspace.shared.openApplication(at: app, configuration: configuration) { @Sendable running, error in
                 guard error == nil, let running, !running.isTerminated, let date = running.launchDate else {
                     completion.finish(.failure(NSError(domain: "CodexSwoop.LaunchServices", code: (error as NSError?)?.code ?? -1)))
                     return

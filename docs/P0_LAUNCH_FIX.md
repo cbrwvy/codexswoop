@@ -99,12 +99,31 @@ gate requiring separate recovery, installation and lifecycle authorization.
 
 ## CI and UI regression correction
 
-The latest remote HEAD includes the missing-bundle guard. Its negative launch test
-passes; the hostless SwiftPM XCTest process instead terminates with signal 5 at
-the positive LaunchServices test. No uploaded stack establishes a deeper platform
-cause. The test now compiles the same production request implementation into a
-physical-main-thread AppKit worker and checks its actual receiver and both roots.
-The probe self-exits; no real Codex is controlled. The test remains enabled.
+The missing-bundle guard remains in place and its negative launch test passes.
+The positive test compiles the unchanged production request source into a
+physical-main-thread AppKit worker, checking the actual disposable receiver and
+both roots. The build-7 CI failure reported worker status 5 without distinguishing
+exit from signal. Explicit stderr capture and termination-reason checks reproduced
+a separate SIGTRAP locally after LaunchServices returned: the worker force-unwrapped a nil
+`NSRunningApplication(processIdentifier:)`. The probe's fixed two-second self-exit
+could race the subsequent receiver lookup.
+
+The focused macOS-15 diagnostic run traps earlier, after the request but before
+its completion body. Apple's NSWorkspace header documents a concurrent callback
+queue. The callback now explicitly declares `@Sendable`, preventing older SDK/compiler
+imports from inheriting the caller's MainActor isolation. Its only captured state is
+the existing lock-protected one-shot continuation; configuration, receiver validation,
+timeout, ownership and lifecycle authorization stay unchanged. Remote validation of
+this correction is recorded in the PR handoff.
+
+The probe now stays alive until the worker verifies the receiver and writes an
+acknowledgement into the disposable home; it always self-exits after 15 seconds if
+unacknowledged. The worker checks exact bundle/date, records its receipt, acknowledges,
+and requires self-exit within three seconds. The probe also reports its own PID,
+which must equal the LaunchServices receiver. Failure remains a test failure with
+explicit signal/exit and allowlisted stage/error diagnostics; missing receipt is
+not treated as a secondary successful/ignored condition. No real Codex is controlled.
+The test stays enabled in both full CI and an optional focused macOS-15 dispatch.
 
 Native menu updates previously replaced NSMenu on every SwiftUI update. Window
 observers also reasserted popover.show with an unchanged anchor. Menu identity is now
