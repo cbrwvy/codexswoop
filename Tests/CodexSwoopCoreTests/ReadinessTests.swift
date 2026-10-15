@@ -53,7 +53,16 @@ private actor InventorySamples {
             }
         }
         guard launched == 0 else { throw POSIXError(POSIXErrorCode(rawValue: launched) ?? .EAGAIN) }
-        defer { var status: Int32 = 0; _ = waitpid(child, &status, 0) }
+        defer {
+            var status: Int32 = 0
+            var reaped: pid_t
+            repeat { reaped = waitpid(child, &status, WNOHANG) } while reaped == -1 && errno == EINTR
+            if reaped == 0 {
+                // Only this test's still-live child, including failure/cancellation paths.
+                _ = kill(child, SIGKILL)
+                repeat { reaped = waitpid(child, &status, 0) } while reaped == -1 && errno == EINTR
+            }
+        }
         let original = try DesktopProcessMetadata.read(child).preciseGeneration()
         XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(original), true)
         let reused = DesktopGeneration(pid: child, uid: original.uid, started: original.started,
@@ -62,12 +71,27 @@ private actor InventorySamples {
         let foreign = DesktopGeneration(pid: child, uid: original.uid + 1, started: original.started,
             startTimeMicroseconds: original.startTimeMicroseconds)
         XCTAssertEqual(DesktopProcessMetadata.kernelGenerationMatches(foreign), false)
-        try await Task.sleep(for: .milliseconds(600))
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, child]
-        var record = kinfo_proc(), size = MemoryLayout<kinfo_proc>.size
-        XCTAssertEqual(sysctl(&mib, u_int(mib.count), &record, &size, nil, 0), 0)
-        XCTAssertEqual(size, MemoryLayout<kinfo_proc>.size)
-        XCTAssertEqual(record.kp_proc.p_stat, 5, "The QA child remains a real unreaped zombie, never treated as absent")
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        var record = kinfo_proc()
+        while true {
+            try Task.checkCancellation()
+            var size = MemoryLayout<kinfo_proc>.size
+            let result = sysctl(&mib, u_int(mib.count), &record, &size, nil, 0)
+            let sampleError = errno
+            guard result == 0, size == MemoryLayout<kinfo_proc>.size, record.kp_proc.p_pid == child else {
+                XCTFail("Cannot observe owned QA child PID \(child): sysctl=\(result), errno=\(sampleError), bytes=\(size)")
+                return
+            }
+            if record.kp_proc.p_stat == SZOMB { break }
+            let remaining = ContinuousClock.now.duration(to: deadline)
+            guard remaining > .zero else {
+                XCTFail("Owned QA child PID \(child) did not reach SZOMB within 10 seconds; last state=\(record.kp_proc.p_stat)")
+                return
+            }
+            try await Task.sleep(for: min(.milliseconds(25), remaining))
+        }
+        XCTAssertEqual(Int32(record.kp_proc.p_stat), SZOMB, "The QA child remains a real unreaped zombie, never treated as absent")
         // Darwin may withhold proc_pidinfo for zombies. Unreadable identity is not
         // proof of PID reuse or exit; the wait still sees the PID until it is reaped.
         XCTAssertNotEqual(DesktopProcessMetadata.kernelGenerationMatches(original), false)
