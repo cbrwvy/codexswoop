@@ -160,8 +160,17 @@ private struct SyntheticIdentityReader: AccountIdentityReading {
         let receipt = f.root.appendingPathComponent("receiver.json")
         let process = Process(); process.executableURL = worker
         process.arguments = [app.path, paths.home, paths.electron, receipt.path]
+        let diagnostics = f.root.appendingPathComponent("worker-stderr.txt")
+        XCTAssertTrue(FileManager.default.createFile(atPath: diagnostics.path, contents: nil))
+        let stderr = try FileHandle(forWritingTo: diagnostics)
+        defer { try? stderr.close() }
+        process.standardError = stderr
         try process.run(); process.waitUntilExit()
-        XCTAssertEqual(process.terminationStatus, 0, "AppKit QA worker must return an exact receiver and observe its self-exit")
+        guard process.terminationReason == .exit && process.terminationStatus == 0 else {
+            let trace = try String(contentsOf: diagnostics, encoding: .utf8)
+            XCTFail("AppKit QA worker reason=\(process.terminationReason.rawValue) status=\(process.terminationStatus); \(trace)")
+            return
+        }
         let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: receipt)) as? [String: Any])
         XCTAssertGreaterThan(try XCTUnwrap(report["pid"] as? Int), 0)
         XCTAssertEqual(report["bundle"] as? String, app.path)
