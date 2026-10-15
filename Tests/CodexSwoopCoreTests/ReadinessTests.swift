@@ -55,6 +55,7 @@ private actor StartupOwnershipSamples {
         XCTAssertNotEqual(receiver, grown, "Full snapshots remain distinct for quit/recovery evidence")
         XCTAssertTrue(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: true))
         XCTAssertFalse(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: false))
+        XCTAssertTrue(DesktopOpeningTarget.matches(grown, expected: receiver, newlyLaunched: false, allowChildChanges: true))
         let changed = DesktopGeneration(pid: generation.pid, uid: generation.uid, started: generation.started, startTimeMicroseconds: 101)
         for bad in [DesktopInstance(main: changed, related: [changed], nativeLaunchDate: receiver.nativeLaunchDate, signingIdentity: signature),
                     DesktopInstance(main: generation, related: [generation], nativeLaunchDate: receiver.nativeLaunchDate.addingTimeInterval(1), signingIdentity: signature),
@@ -1048,5 +1049,54 @@ final class VersionIndependentCodexTests: XCTestCase {
         XCTAssertThrowsError(try NativeDesktopSystem.staticSigningIdentity(app))
         try Data("tampered fixture".utf8).write(to: resource)
         XCTAssertThrowsError(try NativeDesktopSystem.staticSigningIdentity(app))
+    }
+}
+
+final class ActionErrorLogTests: XCTestCase {
+    private func root() throws -> URL {
+        let root = URL(fileURLWithPath: "/private/tmp/codexswoop-error-log-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return root
+    }
+    func testErrorsPersistWithoutRawDescriptionsDomainsOrPaths() throws {
+        let root = try root(), log = ActionErrorLog(root: root)
+        log.record(.addAccount, error: ProfileError.invalidName)
+        log.record(.openProfile, error: NSError(domain: "fixture-private-domain", code: 42,
+            userInfo: [NSLocalizedDescriptionKey: "fixture-private-description", NSFilePathErrorKey: "/synthetic/private-location"]))
+        let bytes = try Data(contentsOf: ActionErrorLog(root: root).fileForViewing())
+        let text = String(decoding: bytes, as: UTF8.self)
+        XCTAssertTrue(text.contains("profile.invalidName")); XCTAssertTrue(text.contains("unexpected.42"))
+        for privateValue in ["fixture-private-domain", "fixture-private-description", "/synthetic/private-location"] {
+            XCTAssertFalse(text.contains(privateValue))
+        }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(try bytes.split(separator: 10).map { try decoder.decode(ActionErrorLog.Entry.self, from: Data($0)) }.count, 2)
+        let attributes = try FileManager.default.attributesOfItem(atPath: log.url.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+    func testRetentionKeepsLatest500Errors() throws {
+        let root = try root(), log = ActionErrorLog(root: root), url = try log.fileForViewing()
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        var previous = Data()
+        for index in 0..<501 {
+            previous.append(try encoder.encode(ActionErrorLog.Entry(timestamp: Date(), action: .other, code: "fixture.\(index)"))); previous.append(10)
+        }
+        try previous.write(to: url)
+        log.record(.addAccount, error: ProfileError.invalidName)
+        let lines = try Data(contentsOf: url).split(separator: 10)
+        XCTAssertEqual(lines.count, 500)
+        XCTAssertTrue(String(decoding: lines.first!, as: UTF8.self).contains("fixture.2"))
+        XCTAssertTrue(String(decoding: lines.last!, as: UTF8.self).contains("profile.invalidName"))
+    }
+    func testSymlinkCannotRedirectLogWrites() throws {
+        let root = try root(), outside = root.appendingPathComponent("sentinel")
+        let original = Data("fixture content remains unchanged".utf8)
+        try original.write(to: outside)
+        let log = ActionErrorLog(root: root)
+        try FileManager.default.createSymbolicLink(at: log.url, withDestinationURL: outside)
+        log.record(.addAccount, error: ProfileError.invalidName)
+        XCTAssertEqual(try Data(contentsOf: outside), original)
+        XCTAssertThrowsError(try log.fileForViewing())
     }
 }

@@ -219,6 +219,11 @@ public final class OpeningOperationJournal: @unchecked Sendable {
             try persist(Envelope(storeID: UUID(), revision: 0, state: "idle", pending: nil, settled: nil))
         }
     }
+    /// Serialize an open-only action or additive setup without changing unresolved history.
+    public func acquireOperationLease() throws {
+        mutex.lock(); defer { mutex.unlock() }
+        try acquireLease()
+    }
     public func begin(_ record: PendingOpeningOperation) throws {
         mutex.lock(); defer { mutex.unlock() }
         try record.validate()

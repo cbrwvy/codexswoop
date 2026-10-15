@@ -138,8 +138,9 @@ public actor NativeDesktopSystem: DesktopSystem {
             if await Self.pidIsForeground(instance) {
                 openingStage = .activationPostflight
                 let newlyLaunched = scope != nil && scopeLaunchedInstance != nil
-                let fresh = try await observeOpeningTarget(association, launchedReceiver: newlyLaunched ? instance : nil)
-                guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: newlyLaunched) else { throw EnvironmentError.processChanged }
+                let fresh = try await observeOpeningTarget(association, launchedReceiver: newlyLaunched ? instance : nil,
+                    expectedReceiver: scope?.mode == .openSeparately ? instance : nil)
+                guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: newlyLaunched, allowChildChanges: scope?.mode == .openSeparately) else { throw EnvironmentError.processChanged }
                 return
             }
             if attempt < 20 { try await Task.sleep(for: .milliseconds(50)) }
@@ -246,11 +247,9 @@ public actor NativeDesktopSystem: DesktopSystem {
                             main: executable == app.path + "/Contents/MacOS/ChatGPT",
                             backend: executable == app.path + "/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex")
         }
-        var precisePIDs = Set(rows.values.filter(\.inBundle).map { $0.generation.pid })
-        while true {
-            let expanded = precisePIDs.union(rows.values.filter { precisePIDs.contains($0.parent) }.map { $0.generation.pid })
-            if expanded == precisePIDs { break }; precisePIDs = expanded
-        }
+        // Shell commands and build tools started by Codex are work, not Desktop receivers.
+        // Their exit/reparenting must not invalidate a stable, signed GUI and its backend.
+        let precisePIDs = Set(rows.values.filter(\.inBundle).map { $0.generation.pid })
         var witnesses: [Int32: InstallationZombieWitness] = [:]
         for pid in precisePIDs {
             guard let row = rows[pid], let metadata = metadataByPID[pid] else { throw EnvironmentError.processChanged }
@@ -626,9 +625,10 @@ public actor NativeDesktopSystem: DesktopSystem {
     }
     private func checkScopeInventory(_ scope: EnvironmentOperationScope, closed: Set<UUID>, launched: DesktopInstance?) async throws {
         openingStage = .activationScopeTarget
-        let target = try await observeOpeningTarget(scope.target, launchedReceiver: launched)
+        let target = try await observeOpeningTarget(scope.target, launchedReceiver: launched,
+            expectedReceiver: scope.mode == .openSeparately ? scope.targetInstance : nil)
         guard DesktopOpeningTarget.matches(target, expected: launched ?? scope.targetInstance,
-            newlyLaunched: launched != nil) else { throw AccountOpeningError.processChanged }
+            newlyLaunched: launched != nil, allowChildChanges: scope.mode == .openSeparately) else { throw AccountOpeningError.processChanged }
         if scope.mode == .closeOthersAndOpen {
             openingStage = .activationScopeInventory
             let inventory = try await environmentInstanceInventory(associations: scope.associations.associations + scope.retainedResearch)

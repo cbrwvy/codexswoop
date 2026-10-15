@@ -273,9 +273,9 @@ extension CoreChecks {
             }
             try expect(await f.system.effects.isEmpty, "No duplicate")
         }
-        await scenario("ambiguous / wrong-root observation blocks") { f in
+        await scenario("ambiguous / wrong-root observation remains unconfirmed after bounded sampling") { f in
             await f.system.configure(ambiguous: true)
-            try await openingError(.opening(.ambiguousInstance)) { try await open(f) }
+            try await openingError(.environment(.ownershipUnconfirmed)) { try await open(f) }
             try expect(await f.system.effects.isEmpty, "No guessed owner")
         }
         await scenario("directory identity changes during confirmation") { f in

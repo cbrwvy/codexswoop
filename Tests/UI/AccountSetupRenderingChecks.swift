@@ -162,7 +162,7 @@ import ServiceManagement
                     let scrolledPNG = scrolledRep.representation(using: .png, properties: [:])!
                     try scrolledPNG.write(to: output.appendingPathComponent(name + "-scrolled-" + language.rawValue + (scheme == .dark ? "-dark.png" : "-light.png")))
                 }
-                if withAccessibility && (name == "link-existing" || name == "add-another") {
+                if withAccessibility && (name == "link-existing" || name == "add-another" || name == "pending-add-another-enabled") {
                     // Visible in-process component host, enabled only for an explicit logged-in QA run.
                     // No native input, permission request, or Desktop adapter is used.
                     let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
@@ -184,7 +184,7 @@ import ServiceManagement
                         precondition(attribute(card, .value) as? String == L10n.text(selected ? "onboarding.selected" : "onboarding.notSelected"))
                     }
                     precondition(attribute(node("add-account-name"), .description) as? String == L10n.text("account.profileName"))
-                    precondition(attribute(node("add-account-continue"), .enabled) as? Bool == false)
+                    precondition(attribute(node("add-account-continue"), .enabled) as? Bool == true)
                     semanticChecks += 1
                     window.orderOut(nil); window.contentView = nil
                 }
@@ -249,7 +249,7 @@ import ServiceManagement
         precondition(manager.profiles.count == 2 && manager.associations.count == 2 && !manager.showsWelcome)
         let activeBeforeUpdate = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
         manager.previewInstallationForChecks(.unverified)
-        precondition(!manager.showsWelcome && manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0) != nil })
+        precondition(!manager.showsWelcome && manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0) == nil })
         precondition(manager.addAccountBlockedReason(managed: true) == nil, "Unverifiable processes/signatures only block lifecycle, not metadata setup")
         let activeAfterUpdate = try MainThreadPreparation.wait { try await store.inspectAccountSetup() }
         precondition(activeAfterUpdate == activeBeforeUpdate)
@@ -299,7 +299,7 @@ import ServiceManagement
             precondition(manager.diagnosticErrorMessage == SwitchingError.opening(.launchFailure).errorDescription)
         }
         manager.setLanguage(.english)
-        precondition(manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0) == L10n.text("review.previousOperation") })
+        precondition(manager.profiles.allSatisfy { manager.openingBlockedReason(for: $0, mode: .closeOthersAndOpen) == L10n.text("review.previousOperation") })
         try render(MenuBarView(manager: manager), "opening-review-required")
         try render(SettingsView(manager: manager).frame(width: 440, height: 400), "opening-review-retained-error")
         manager.previewOpeningReviewForChecks(nil)
@@ -320,7 +320,19 @@ import ServiceManagement
         let recoveredManager = ProfileManager(defaults: fixtureDefaults)
         try MainThreadPreparation.wait { await recoveredManager.reload() }
         precondition(recoveredManager.needsOpeningReview && recoveredManager.storageReady)
-        precondition(recoveredManager.profiles.allSatisfy { recoveredManager.openingBlockedReason(for: $0) != nil })
+        precondition(recoveredManager.profiles.allSatisfy { recoveredManager.openingBlockedReason(for: $0, mode: .closeOthersAndOpen) != nil })
+        let pendingJournalBytes = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal.json"))
+        let pendingWatermarkBytes = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal-watermark.json"))
+        try render(ProfileEditor(manager: recoveredManager, profile: nil, managed: true, initialName: "Fixture new account"),
+            "pending-add-another-enabled", owner: recoveredManager)
+        try MainThreadPreparation.wait {
+            let result = await recoveredManager.addAccount(name: "Fixture added through pending", managed: true)
+            precondition(result)
+            precondition(recoveredManager.profiles.contains { $0.name == "Fixture added through pending" })
+        }
+        let journalAfterAttempt = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal.json"))
+        let watermarkAfterAttempt = try Data(contentsOf: configuration.root.appendingPathComponent("opening-journal-watermark.json"))
+        precondition(journalAfterAttempt == pendingJournalBytes && watermarkAfterAttempt == pendingWatermarkBytes)
         try render(MenuBarView(manager: recoveredManager), "opening-review-restored", owner: recoveredManager)
         try render(SettingsView(manager: recoveredManager).frame(width: 440, height: 400), "opening-review-restored-details", owner: recoveredManager)
         // Test-only cleanup; the production UI has no reset/delete-journal action.
@@ -345,10 +357,13 @@ import ServiceManagement
             let preview = try await store.previewProfileRemoval(id: manager.profiles[1].id)
             _ = try await store.commitAccountSetup(preview); await manager.reload()
         }
-        precondition(manager.profiles.count == 1 && manager.retainedEnvironments.count == 1)
+        precondition(manager.profiles.count == 2 && manager.retainedEnvironments.count == 1)
         try MainThreadPreparation.wait {
-            let remaining = try await store.previewProfileRemoval(id: manager.profiles[0].id)
-            _ = try await store.commitAccountSetup(remaining); await manager.reload()
+            for profile in manager.profiles {
+                let remaining = try await store.previewProfileRemoval(id: profile.id)
+                _ = try await store.commitAccountSetup(remaining)
+            }
+            await manager.reload()
         }
         precondition(manager.showsWelcome && !manager.retainedEnvironments.isEmpty)
         try render(MenuBarView(manager: manager), "welcome-with-retained-accounts")
@@ -361,7 +376,7 @@ import ServiceManagement
         try MainThreadPreparation.wait {
             let before = try await store.inspectAccountSetup()
             let preview = try await store.previewAccountSetupReset()
-            precondition(preview.removedProfiles.isEmpty && preview.removedSavedEnvironmentCount == 1)
+            precondition(preview.removedProfiles.isEmpty && preview.removedSavedEnvironmentCount == 2)
             _ = try await store.commitAccountSetup(preview); await manager.reload()
             let after = try await store.inspectAccountSetup()
             precondition(after.profiles == before.profiles && after.associations == before.associations && after.managed == before.managed)

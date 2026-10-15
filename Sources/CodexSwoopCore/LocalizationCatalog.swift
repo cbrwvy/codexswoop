@@ -358,6 +358,7 @@ extension L10n {
         "settings.noError": ["en": ["other": "No operation errors."], "ru": ["other": "Ошибок операций нет."], "uz-Latn": ["other": "Amallarda xato yo‘q."]],
         "settings.notGranted": ["en": ["other": "Not allowed"], "ru": ["other": "Не разрешено"], "uz-Latn": ["other": "Ruxsat berilmagan"]],
         "settings.openAX": ["en": ["other": "Open Accessibility Settings…"], "ru": ["other": "Открыть настройки доступа…"], "uz-Latn": ["other": "Ruxsat sozlamalarini ochish…"]],
+        "settings.openErrorLog": ["en": ["other": "Open error log"], "ru": ["other": "Открыть журнал ошибок"], "uz-Latn": ["other": "Xatolar jurnalini ochish"]],
         "settings.preserve": ["en": ["other": "These are saved records of removed profiles. Clearing this list keeps active profiles, Codex data and sign-in."], "ru": ["other": "Здесь сохранены записи удалённых профилей. Очистка списка сохраняет активные профили, данные Codex и авторизацию."], "uz-Latn": ["other": "Bu yerda olib tashlangan profillarning yozuvlari saqlanadi. Ro‘yxatni tozalash faol profillar, Codex ma’lumotlari va kirish holatini saqlaydi."]],
         "settings.refresh": ["en": ["other": "Refresh"], "ru": ["other": "Обновить"], "uz-Latn": ["other": "Yangilash"]],
         "settings.reset": ["en": ["other": "Clear Saved Accounts…"], "ru": ["other": "Очистить сохранённые аккаунты…"], "uz-Latn": ["other": "Saqlangan hisoblarni tozalash…"]],

@@ -35,7 +35,7 @@ The name is only a label in CodexSwoop. Check the signed-in account in the offic
 
 1. Select **Add Account** and choose **Sign In to Another Account**.
 2. Enter a profile name, such as `Work`, and continue. CodexSwoop prepares a Managed environment; it does not authenticate for you.
-3. Open the profile menu and choose **Open Separately**. Review and accept the confirmation to open its environment.
+3. Open the profile menu and choose **Open Separately**. The selected environment opens without an extra confirmation.
 4. Complete sign-in inside the official Codex app.
 
 Separate local directories are not a guarantee that every macOS or browser authentication service is isolated.
@@ -46,7 +46,7 @@ Use the profile's **More** menu to recheck its environment link, add a manual ac
 
 ## Open Separately
 
-Open the profile menu and choose **Open Separately**. CodexSwoop asks you to confirm, then attempts to activate the linked running environment or launch Codex with that environment. This does not confirm the ChatGPT account identity. The action can be unavailable when the current Codex signature, installation or environment evidence cannot be verified; a version mismatch alone does not block it.
+Open the profile menu and choose **Open Separately**. CodexSwoop activates the linked running environment or launches Codex with that environment. This does not confirm the ChatGPT account identity. The action can be unavailable when the current Codex signature, installation or environment evidence cannot be verified; a version mismatch alone does not block it.
 
 ## Close Others & Open
 

@@ -17,7 +17,7 @@ Sign in only through the official Codex app. CodexSwoop does not import tokens o
 
 ## Profile actions
 
-- **Open Separately** asks for confirmation and attempts to activate or launch Codex using the selected environment. Identity is not verified by the profile label or by successful opening.
+- **Open Separately** activates or launches Codex using the selected environment without an extra confirmation. Identity is not verified by the profile label or by successful opening.
 - **Close Others & Open** requests normal closure of other identified Codex instances one at a time, then opens the selected environment. The action can stop when an instance is unknown or checks change. It is not atomic; some instances may already have closed if a later step fails.
 - **Recheck** validates the saved environment reference.
 - **Confirm account manually** records your own visual check as a local note. It does not prove account identity or unlock account verification.
@@ -27,7 +27,7 @@ Sign in only through the official Codex app. CodexSwoop does not import tokens o
 
 ## Opening behavior and confirmation
 
-Each opening attempt uses the supported-build and environment-ownership checks available in the current build. Confirmation is required before opening, and closing other instances has its own confirmation. Cancel when you cannot review the affected instances or their state.
+Each opening attempt uses the supported-build and environment-ownership checks available in the current build. Open Separately starts from the profile menu without an extra confirmation. Closing other instances requires its own confirmation. Cancel when you cannot review the affected instances or their state.
 
 Activity status may be **Unknown** because CodexSwoop cannot establish complete activity information. Unknown is not idle. A user confirmation is per attempt and does not change the status. An instance with unknown ownership can block **Close Others & Open** altogether.
 
@@ -35,7 +35,7 @@ Activity status may be **Unknown** because CodexSwoop cannot establish complete 
 
 If CodexSwoop says a previous operation needs review, stop and check Codex and any unsaved work. Select **Check Again** only after reviewing the situation. It checks current process and environment evidence without launching or closing Codex or replaying the previous operation.
 
-If the warning remains, new actions may stay blocked. Follow the on-screen details and contact the project maintainers with a redacted description if needed. Do not retry repeatedly, edit recovery metadata, or bypass the review.
+Older opening history does not block Add Account or Open Separately. These actions perform fresh validation on each click. Closing other instances still requires resolving unfinished closing operations and explicit confirmation. Do not edit recovery metadata. Errors are recorded locally; open **Settings → Diagnostics → Open error log** to review the latest 500 entries, containing a timestamp, action and sanitized error code.
 
 ## Settings
 

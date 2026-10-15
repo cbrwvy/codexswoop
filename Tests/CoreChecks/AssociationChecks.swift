@@ -467,9 +467,9 @@ extension CoreChecks {
                 role: role, homeDescriptors: home, electronDescriptors: electron, defaultDescriptors: defaults)
         }
         let good = [row(10, 1, .main, 2, 3), row(11, 10, .backend, 2), row(12, 10, .helper, 0, 1), row(13, 11, .external)]
-        await run("Ownership: two instances are distinguishable by roots; external child stays associated") {
+        await run("Ownership: two instances are distinguishable by roots; external work is excluded from the Desktop receiver") {
             let sample = good + [row(20, 1, .main), row(21, 20, .backend)]
-            try expect(try DesktopOwnership.resolve(before: sample, after: sample, standard: false).first?.map(\.pid) == [10, 11, 12, 13], "Positive roots and ancestry, unrelated main excluded")
+            try expect(try DesktopOwnership.resolve(before: sample, after: sample, standard: false).first?.map(\.pid) == [10, 11, 12], "Positive roots and ancestry, unrelated main excluded")
         }
         for (name, sample) in [
             ("new PID/window alone", [row(10, 1, .main, 1), row(11, 10, .backend, 1)]),
@@ -486,8 +486,14 @@ extension CoreChecks {
         await run("Ownership: PID reuse and changed parent between samples invalidate ownership") {
             let changed = [row(10, 1, .main, 2, 3, started: "new generation")] + Array(good.dropFirst())
             try await environmentError(.processChanged) { _ = try DesktopOwnership.resolve(before: good, after: changed, standard: false) }
-            let reparented = Array(good.dropLast()) + [row(13, 1, .external)]
-            try await environmentError(.ambiguousInstance) { _ = try DesktopOwnership.resolve(before: good, after: reparented, standard: false) }
+            let reparented = [good[0], row(11, 1, .backend, 2), good[2], good[3]]
+            try await environmentError(.processChanged) { _ = try DesktopOwnership.resolve(before: good, after: reparented, standard: false) }
+        }
+        await run("Ownership: transient external commands do not invalidate the app; foreign root use still fails") {
+            let changedWork = Array(good.dropLast()) + [row(14, 11, .external)]
+            try expect(try DesktopOwnership.resolve(before: good, after: changedWork, standard: false).first?.map(\.pid) == [10, 11, 12], "Stable Desktop receiver despite changing work children")
+            let foreignRootUse = good + [row(14, 11, .external, 1)]
+            try await environmentError(.ambiguousInstance) { _ = try DesktopOwnership.resolve(before: foreignRootUse, after: foreignRootUse, standard: false) }
         }
         await run("Ownership: stale, duplicate and wrong-UID handles cannot identify a native target") {
             let gen = DesktopGeneration(pid: 99, uid: getuid(), started: "fixture"), instance = DesktopInstance(main: gen, related: [gen], nativeLaunchDate: Date().addingTimeInterval(-1))

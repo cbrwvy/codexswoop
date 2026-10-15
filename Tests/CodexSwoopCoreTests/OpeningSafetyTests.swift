@@ -124,6 +124,59 @@ final class OpeningSafetyTests: XCTestCase {
         AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(bootSession: { "synthetic-boot" },
             store: ProfileStore(root: f.validator.managedRoot), validator: f.validator, system: f.system, openingJournal: journal))
     }
+    func testIndependentOpeningPreservesPendingAndOtherRunningProfile() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot(), running: false)
+        let record = try await pendingRecord(f)
+        let journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        try journal.begin(record); try journal.append(.launch, operation: record.id); journal.abandon()
+        let names = ["opening-journal.json", "opening-journal-watermark.json"]
+        let before = try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }
+        let other = await f.system.instances[f.associations[0].environmentID]
+        let driver = DesktopSwitchingDriver(store: f.store, validator: f.validator, system: f.system, independentOpeningAllowed: true)
+        let coordinator = AccountSwitchingCoordinator(driver: driver)
+        _ = try await coordinator.refreshOpeningRecovery()
+        for _ in 0..<2 {
+            try await coordinator.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
+        }
+        let effects = await f.system.effects, retained = await f.system.instances[f.associations[0].environmentID]
+        XCTAssertEqual(effects, ["launch", "activate", "activate"])
+        XCTAssertEqual(retained, other)
+        XCTAssertEqual(try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }, before)
+        do {
+            try await coordinator.openAccount(to: f.profiles[1], mode: .closeOthersAndOpen, environmentScoped: true)
+            XCTFail("Closing other processes must still require settlement of old history")
+        } catch { XCTAssertEqual(error as? SwitchingError, .opening(.recoveryRequired)) }
+    }
+    func testIndependentFailedActivationAllowsFreshObservedAttemptWithoutPending() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let coordinator = AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(
+            store: f.store, validator: f.validator, system: f.system, independentOpeningAllowed: true))
+        await f.system.configure(activation: true)
+        do {
+            try await coordinator.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
+            XCTFail("Native failure must be returned")
+        } catch { XCTAssertEqual(error as? SwitchingError, .activationFailed) }
+        XCTAssertNil(try OpeningOperationJournal(root: f.validator.managedRoot).pending())
+        await f.system.configure()
+        try await coordinator.openAccount(to: f.profiles[1], mode: .openSeparately, environmentScoped: true, confirmOpen: { _ in true })
+        let result = await coordinator.openingResult
+        XCTAssertEqual(result, .activatedExisting(f.profiles[1].id))
+    }
+    func testAdditiveSetupPreservesPendingButRespectsActiveOperationLease() async throws {
+        let f = try await ReleaseFixture.make(root: qaRoot())
+        let record = try await pendingRecord(f), journal = OpeningOperationJournal(root: f.validator.managedRoot)
+        try journal.begin(record)
+        do { _ = try await f.store.previewNewAccount(name: "Concurrent", managed: true, validator: f.validator); XCTFail("Concurrent opening must serialize") }
+        catch { XCTAssertEqual(error as? OpeningJournalError, .busy) }
+        journal.abandon()
+        let names = ["opening-journal.json", "opening-journal-watermark.json"]
+        let before = try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }
+        let preview = try await f.store.previewNewAccount(name: "Independent new profile", managed: true, validator: f.validator)
+        guard case let .committed(state) = try await f.store.commitAccountSetup(preview) else { return XCTFail("Creation failed") }
+        XCTAssertEqual(state.profiles.profiles.count, 3)
+        XCTAssertTrue(state.profiles.profiles.contains(f.profiles[0]))
+        XCTAssertEqual(try names.map { try Data(contentsOf: f.validator.managedRoot.appendingPathComponent($0)) }, before)
+    }
     func testRestartRestoresSubmittedActivationAndCheckAgainNeverReplays() async throws {
         let f = try await ReleaseFixture.make(root: qaRoot()), intent = try await pendingRecord(f)
         let journal = OpeningOperationJournal(root: f.validator.managedRoot)

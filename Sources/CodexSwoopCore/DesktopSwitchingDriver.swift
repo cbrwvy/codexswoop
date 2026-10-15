@@ -185,6 +185,7 @@ public actor DesktopSwitchingDriver: AccountSwitchingDriver {
     private var recoveryScope: EnvironmentOperationScope?
     private let bootSessionProvider: @Sendable () throws -> String
     private let openingJournal: OpeningOperationJournal
+    public let independentOpeningAllowed: Bool
     private var openingStage: OpeningFailureRecord.Stage?
     private var journalID: UUID?
     private var journalBuild: OpeningBuildFingerprint?
@@ -196,9 +197,10 @@ public actor DesktopSwitchingDriver: AccountSwitchingDriver {
     public init(bootSession: @escaping @Sendable () throws -> String = OpeningOperationJournal.bootSession,
                 store: ProfileStore, validator: EnvironmentValidator, system: any DesktopSystem,
                 verifier: any DesktopAccountVerifying = AccountIdentityVerifier(), source: EnvironmentAssociation? = nil,
-                openingJournal: OpeningOperationJournal? = nil) {
+                openingJournal: OpeningOperationJournal? = nil, independentOpeningAllowed: Bool = false) {
         self.store = store; self.validator = validator; self.system = system; self.verifier = verifier; self.source = source
         self.bootSessionProvider = bootSession
+        self.independentOpeningAllowed = independentOpeningAllowed
         self.openingJournal = openingJournal ?? OpeningOperationJournal(root: store.root)
     }
     public func validate(profile: AccountProfile) async throws {
@@ -270,9 +272,10 @@ public actor DesktopSwitchingDriver: AccountSwitchingDriver {
             try await recordOpeningEffect(.launch)
             launchSubmitted = true
             let journal = openingJournal
+            let persistReceiver = !independentOpeningAllowed || scope.mode != .openSeparately
             openingStage = .launch
             launched = try await system.launchScopedEnvironment(scope, recordReceiver: {
-                try journal.captureLaunchReceiver($0, operation: scope.id)
+                if persistReceiver { try journal.captureLaunchReceiver($0, operation: scope.id) }
             })
             try await recordOpeningEffect(.activation(launched!))
             activationSubmitted = true
@@ -377,7 +380,14 @@ extension DesktopSwitchingDriver {
         }
         let managed = try await store.inspectManagedEnvironments()
         try await system.validateInstallation()
-        let instance = try await system.observe(association).unique()
+        let instance: DesktopInstance?
+        do { instance = try await system.observe(association).unique() }
+        catch let error as EnvironmentError where environmentScoped && mode == .openSeparately
+            && (error == .ambiguousInstance || error == .processChanged || error == .backendNotReady) {
+            instance = try await DesktopReadiness.wait(timeout: .seconds(5), preserveReason: true) {
+                try await self.system.observe(association, timeout: $0)
+            }
+        }
         var evidence: DesktopActivationEvidence?
         if let instance, !environmentScoped {
             try await requireIdentity(association, instance: instance)
@@ -438,9 +448,10 @@ extension DesktopSwitchingDriver {
         try validator.revalidate(plan.association)
         try await system.validateInstallation()
         openingStage = .driverPostflightTarget
-        let currentTarget = try await system.observeOpeningTarget(plan.association, launchedReceiver: scopedOpening ? launched : nil)
+        let currentTarget = try await system.observeOpeningTarget(plan.association, launchedReceiver: scopedOpening ? launched : nil,
+            expectedReceiver: scopedOpening && plan.mode == .openSeparately ? plan.targetInstance : nil)
         guard DesktopOpeningTarget.matches(currentTarget, expected: launched ?? plan.targetInstance,
-            newlyLaunched: scopedOpening && launched != nil) else { throw AccountOpeningError.processChanged }
+            newlyLaunched: scopedOpening && launched != nil, allowChildChanges: scopedOpening && plan.mode == .openSeparately) else { throw AccountOpeningError.processChanged }
         if let currentTarget, !scopedOpening {
             try await requireIdentity(plan.association, instance: currentTarget)
             if let activation {
@@ -500,7 +511,8 @@ extension DesktopSwitchingDriver {
         guard openingToken == plan.id else { return }
         let disposition = await system.environmentEffectDisposition(plan.id)
         let noDispatch = scopedOpening && disposition == .notDispatched
-        if scopedOpening, !success, !noDispatch { recoveryScope = operationScope }
+        let independent = scopedOpening && independentOpeningAllowed && plan.mode == .openSeparately
+        if scopedOpening, !success, !noDispatch, !independent { recoveryScope = operationScope }
         if !success, noDispatch, journalID == plan.id {
             do { try openingJournal.complete(plan.id) } catch { /* Preserve an uncertain journal transition. */ }
         }
@@ -509,7 +521,7 @@ extension DesktopSwitchingDriver {
         scopedOpening = false; scopedManaged = nil; scopedRetainedResearch = []; operationScope = nil
         openingToken = nil
         target = nil; activation = nil; launched = nil; capturedSource = nil
-        if success || noDispatch { openingQuitGenerations = []; quitRequested = false; launchSubmitted = false; activationSubmitted = false }
+        if success || noDispatch || independent { openingQuitGenerations = []; quitRequested = false; launchSubmitted = false; activationSubmitted = false }
         // Failure retains consumed effect flags. No launch, quit, metadata change or automatic rollback.
     }
 }
@@ -726,7 +738,9 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
         let build = try await system.openingBuildFingerprint()
         let scope = EnvironmentOperationScope(plan: plan, managed: managed, retainedResearch: scopedRetainedResearch, buildFingerprint: build)
         try scope.validate()
-        try await beginOpeningJournal(scope)
+        if independentOpeningAllowed && plan.mode == .openSeparately {
+            try openingJournal.acquireOperationLease()
+        } else { try await beginOpeningJournal(scope) }
         try await system.authorizeEnvironmentOperation(scope, allowPrimary: allowPrimary)
         operationScope = scope
     }
@@ -734,8 +748,9 @@ extension DesktopSwitchingDriver: ScopedEnvironmentOpeningDriver {
         guard scopedOpening, operationScope?.id == plan.id, let instance = launched ?? plan.targetInstance else { throw AccountOpeningError.processChanged }
         try validator.revalidate(plan.association)
         openingStage = .driverPostflightTarget
-        let fresh = try await system.observeOpeningTarget(plan.association, launchedReceiver: launched)
-        guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: launched != nil) else { throw AccountOpeningError.processChanged }
+        let fresh = try await system.observeOpeningTarget(plan.association, launchedReceiver: launched,
+            expectedReceiver: plan.mode == .openSeparately ? plan.targetInstance : nil)
+        guard DesktopOpeningTarget.matches(fresh, expected: instance, newlyLaunched: launched != nil, allowChildChanges: plan.mode == .openSeparately) else { throw AccountOpeningError.processChanged }
         openingStage = .driverForeground
         try await system.verifyPIDForeground(instance)
     }
@@ -774,6 +789,7 @@ extension DesktopSwitchingDriver {
         journalID = scope.id; journalBuild = build
     }
     private func recordOpeningEffect(_ effect: EnvironmentSubmittedEffect) async throws {
+        if independentOpeningAllowed, scopedOpening, operationScope?.mode == .openSeparately { return }
         guard try await system.openingBuildFingerprint() == journalBuild else { throw EnvironmentError.incompatibleBuild }
         guard let journalID else { throw OpeningJournalError.conflict }
         try openingJournal.append(effect, operation: journalID)

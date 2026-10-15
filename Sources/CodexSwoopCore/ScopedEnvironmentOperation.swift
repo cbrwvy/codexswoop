@@ -45,6 +45,7 @@ public struct EnvironmentOperationScope: Equatable, Sendable {
 }
 
 public protocol ScopedEnvironmentOpeningDriver: AccountSwitchingDriver {
+    var independentOpeningAllowed: Bool { get async }
     func planEnvironmentAccount(profile: AccountProfile, mode: AccountOpeningMode) async throws -> AccountOpeningPlan
     func authorizeEnvironmentAccount(_ plan: AccountOpeningPlan, allowPrimary: Bool) async throws
     func verifyEnvironmentAccount(_ plan: AccountOpeningPlan) async throws
@@ -53,6 +54,7 @@ public protocol ScopedEnvironmentOpeningDriver: AccountSwitchingDriver {
     func reconcileEnvironmentRecovery() async throws
 }
 public extension ScopedEnvironmentOpeningDriver {
+    var independentOpeningAllowed: Bool { get async { false } }
     func openingEffectDisposition() async -> EnvironmentEffectDisposition { .unknown }
     func reconcileEnvironmentRecovery() async throws { throw AccountOpeningError.recoveryRequired }
 }

@@ -358,9 +358,14 @@ extension AccountSwitchingCoordinator {
         confirmOpen: @Sendable (AccountOpeningPlan) async -> Bool = { _ in false },
         confirmClose: @Sendable (AccountCloseConfirmation) async -> AccountCloseDecision = { _ in .cancel }) async throws {
         guard !busy else { throw SwitchingError.opening(.busy) }
-        try await refreshOpeningRecovery()
+        let supportsIndependent = await (driver as? any ScopedEnvironmentOpeningDriver)?.independentOpeningAllowed == true
         guard !busy else { throw SwitchingError.opening(.busy) }
-        guard state != .recoveryRequired else { throw SwitchingError.opening(.recoveryRequired) }
+        let independent = environmentScoped && mode == .openSeparately && supportsIndependent
+        if !independent {
+            try await refreshOpeningRecovery()
+            guard !busy else { throw SwitchingError.opening(.busy) }
+            guard state != .recoveryRequired else { throw SwitchingError.opening(.recoveryRequired) }
+        }
         guard let driver else { state = .unavailable; throw SwitchingError.unavailable }
         busy = true; openingRecoveryResolution = nil; lastError = nil; openingResult = nil; environmentOpeningResult = nil; openingDisposition = nil; openingProgress = AccountOpeningProgress(); rollbackFailed = false
         defer { busy = false }
@@ -476,7 +481,7 @@ extension AccountSwitchingCoordinator {
                await scopedDriver.openingEffectDisposition() == .notDispatched {
                 openingProgress.actionMayHaveOccurred = false
             }
-            if openingProgress.actionMayHaveOccurred {
+            if openingProgress.actionMayHaveOccurred && !independent {
                 environmentRecoveryRequired = true
                 state = .recoveryRequired
                 openingDisposition = openingProgress.closedProfileIDs.isEmpty ? .recoveryRequired : .partialCompletion
@@ -486,7 +491,7 @@ extension AccountSwitchingCoordinator {
             do { try await driver.persistOpeningFailure(failure) }
             catch { lastError = failure } // A failed diagnostic write never clears pending or hides its cause.
             if let plan { await driver.finishOpening(plan, success: false) }
-            if (try? await driver.restoreOpeningRecovery()) != false {
+            if !independent, (try? await driver.restoreOpeningRecovery()) != false {
                 environmentRecoveryRequired = true; state = .recoveryRequired
                 if openingDisposition == nil { openingDisposition = .recoveryRequired }
             }

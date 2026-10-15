@@ -775,7 +775,9 @@ extension ProfileStore {
     }
     /// The caller has selected a setup mode. Existing defaults are linked without sign-in or copying.
     public func previewNewAccount(name: String, managed: Bool, validator supplied: EnvironmentValidator? = nil) throws -> AccountSetupPreview {
-        try withLock(exclusiveExisting: true) {
+        let opening = OpeningOperationJournal(root: root)
+        try opening.acquireOperationLease(); defer { opening.abandon() }
+        return try withLock(exclusiveExisting: true, allowOpeningJournal: true) {
             let before = try setupState(), validator = supplied ?? EnvironmentValidator(managedRoot: root)
             guard validator.managedRoot == root else { throw AccountSetupError.incompatibleEnvironment }
             let profile = try AccountProfile(name: name); try ensureUnique(profile.name, in: before.profiles)
@@ -873,7 +875,11 @@ extension ProfileStore {
     }
     public func commitAccountSetup(_ preview: AccountSetupPreview) throws -> AccountSetupOutcome {
         try Task.checkCancellation()
-        return try withLock(exclusiveExisting: true) {
+        // Setup changes Swoop metadata only; serialize with lifecycle without settling its history.
+        let opening = OpeningOperationJournal(root: root)
+        try opening.acquireOperationLease()
+        defer { opening.abandon() }
+        return try withLock(exclusiveExisting: true, allowOpeningJournal: true) {
             guard preview.root == root, try setupSnapshot() == preview.files, try setupState() == preview.before else { throw AccountSetupError.conflict }
             // Confirm newly linked/restored directories again after the user has reviewed the operation.
             let validator = EnvironmentValidator(userHome: preview.validationHome, managedRoot: root)

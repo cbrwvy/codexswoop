@@ -93,6 +93,7 @@ final class ProfileManager: ObservableObject {
         @unknown default: "onboarding.login.unknown"
         }
     }
+    private let errorLog: ActionErrorLog
     private let store: ProfileStore
     private var testPreferredPath: String?
     private let defaults: UserDefaults
@@ -107,13 +108,14 @@ final class ProfileManager: ObservableObject {
         self.language = AppLanguage(rawValue: defaults.string(forKey: L10n.preferenceKey) ?? "system") ?? .system
         L10n.setSessionLanguage(AppLanguage(rawValue: defaults.string(forKey: L10n.preferenceKey) ?? "system") ?? .system)
         let configuration = Self.storageConfiguration()
+        self.errorLog = configuration.isTest ? ActionErrorLog(root: configuration.root.appendingPathComponent("Logs")) : ActionErrorLog()
         self.isTestStorage = configuration.isTest
         self.store = ProfileStore(root: configuration.root)
         self.validator = EnvironmentValidator(userHome: configuration.isTest ? configuration.root.appendingPathComponent("fixture-user") : FileManager.default.homeDirectoryForCurrentUser, managedRoot: configuration.root)
         let desktopSystem: any DesktopSystem = configuration.isTest ? SetupPreviewDesktopSystem() : NativeDesktopSystem(validator: validator)
         self.desktopSystem = desktopSystem
         self.coordinator = AccountSwitchingCoordinator(driver: DesktopSwitchingDriver(
-            store: store, validator: validator, system: desktopSystem))
+            store: store, validator: validator, system: desktopSystem, independentOpeningAllowed: true))
         usage.onChange = { [weak self] in self?.usageRevision += 1 }
         refreshDetection()
     }
@@ -158,7 +160,7 @@ final class ProfileManager: ObservableObject {
             guard let self else { return }
             let verified: Bool
             do { try await desktopSystem.validateInstallation(); verified = true }
-            catch { verified = false }
+            catch { errorLog.record(.installation, error: error); verified = false }
             guard !Task.isCancelled, revision == detectionRevision else { return }
             codexAvailability = verified && CodexDetector().inspect(found.url) == found ? .verified : .unverified
         }
@@ -179,7 +181,7 @@ final class ProfileManager: ObservableObject {
     #endif
 
     func reload() async {
-        guard !isBusy else { return }
+        guard !isBusy else { errorLog.record(.other, error: ProfileError.storeBusy); return }
         isBusy = true
         defer { isBusy = false }
         do {
@@ -213,12 +215,16 @@ final class ProfileManager: ObservableObject {
         do {
             needsOpeningReview = try await coordinator.refreshOpeningRecovery()
             if needsOpeningReview && openingReviewErrorProvider == nil {
-                if let failure = await coordinator.lastError { openingReviewErrorProvider = { failure.errorDescription ?? L10n.text("review.pendingDetail") } }
+                if let failure = await coordinator.lastError {
+                    errorLog.record(.reviewOperation, error: failure)
+                    openingReviewErrorProvider = { failure.errorDescription ?? L10n.text("review.pendingDetail") }
+                }
                 else { openingReviewErrorProvider = { L10n.text("review.pendingDetail") } }
             }
         }
         catch SwitchingError.busy { show(SwitchingError.busy) }
         catch {
+            errorLog.record(.reviewOperation, error: error)
             needsOpeningReview = true
             openingReviewErrorProvider = { (error as? OpeningJournalError)?.errorDescription ?? L10n.text("review.journalDetail") }
         }
@@ -229,7 +235,7 @@ final class ProfileManager: ObservableObject {
     func create(name: String) async -> Bool { await update { try await self.store.create(name: name) } }
     func rename(id: UUID, name: String) async -> Bool { await update { try await self.store.rename(id: id, name: name) } }
     func remove(id: UUID) async -> Bool {
-        guard !isBusy, !needsOpeningReview, storageReady else { return false }
+        guard ready(.removeProfile, requireResolvedOpening: false) else { return false }
         isBusy = true; defer { isBusy = false }
         do {
             let preview = try await store.previewProfileRemoval(id: id)
@@ -240,7 +246,7 @@ final class ProfileManager: ObservableObject {
     }
 
     func resetAccountSetup() async {
-        guard !isBusy, !needsOpeningReview, storageReady else { return }
+        guard ready(.resetSaved, requireResolvedOpening: false) else { return }
         isBusy = true; defer { isBusy = false }
         do {
             let preview = try await store.previewAccountSetupReset()
@@ -252,7 +258,6 @@ final class ProfileManager: ObservableObject {
 
     /// Fixed standard roots only: never select a running Codex instance or inspect its authorization.
     func addAccountBlockedReason(managed: Bool) -> String? {
-        if needsOpeningReview { return L10n.text("review.previousOperation") }
         if !storageReady || !associationsReady || !managedStorageReady { return L10n.text("account.storageUnavailable") }
         if !managed && associations.contains(where: { $0.kind == .standardExternal }) { return L10n.text("account.alreadyLinked") }
         // Local metadata preparation performs no Codex validation, authorization read or lifecycle effect.
@@ -266,8 +271,11 @@ final class ProfileManager: ObservableObject {
     }
 
     func addAccount(name: String, managed: Bool) async -> Bool {
-        guard !isBusy, !needsOpeningReview, storageReady else { return false }
-        if let reason = addAccountBlockedReason(managed: managed) { errorMessage = reason; return false }
+        guard ready(.addAccount, requireResolvedOpening: false) else { return false }
+        if let reason = addAccountBlockedReason(managed: managed) {
+            let failure: EnvironmentError = !managed && associations.contains(where: { $0.kind == .standardExternal }) ? .duplicateAssociation : .invalidMetadata
+            errorLog.record(.addAccount, error: failure); errorMessage = reason; return false
+        }
         isBusy = true; defer { isBusy = false }
         do {
             let preview = try await store.previewNewAccount(name: name, managed: managed, validator: validator)
@@ -289,7 +297,7 @@ final class ProfileManager: ObservableObject {
     }
 
     func restoreSavedManaged(_ id: UUID) async {
-        guard !isBusy, !needsOpeningReview, storageReady else { return }
+        guard ready(.restoreProfile, requireResolvedOpening: false) else { return }
         isBusy = true; defer { isBusy = false }
         do {
             let preview = try await store.previewSavedManagedRestore(environmentID: id)
@@ -300,7 +308,8 @@ final class ProfileManager: ObservableObject {
     }
 
     func reviewPendingSetup() async {
-        guard !isBusy, let pending = pendingSetup else { return }
+        guard !isBusy else { errorLog.record(.reviewOperation, error: ProfileError.storeBusy); return }
+        guard let pending = pendingSetup else { return }
         isBusy = true; defer { isBusy = false }
         let alert = NSAlert(); alert.alertStyle = .warning; alert.messageText = L10n.text("message.1e8e229013")
         alert.informativeText = L10n.text("message.9d592c131b", pending.operation)
@@ -367,7 +376,10 @@ final class ProfileManager: ObservableObject {
         connectionNotice = L10n.text("message.6910fb9db8")
     }
     func prepareManagedEnvironment(_ profile: AccountProfile) async {
-        guard !isBusy, storageReady, associationsReady, managedStorageReady, association(for: profile) == nil else { return }
+        guard ready(.prepareEnvironment) else { return }
+        guard associationsReady, managedStorageReady, association(for: profile) == nil else {
+            errorLog.record(.prepareEnvironment, error: EnvironmentError.invalidMetadata); return
+        }
         isBusy = true; defer { isBusy = false }
         do {
             _ = try await store.prepareManagedEnvironment(profileID: profile.id)
@@ -393,7 +405,8 @@ final class ProfileManager: ObservableObject {
                                   electron: directory.appendingPathComponent("electron-user-data").path)
     }
     func link(_ candidate: EnvironmentAssociation) async -> Bool {
-        guard !isBusy, storageReady, associationsReady else { return false }
+        guard ready(.linkEnvironment) else { return false }
+        guard associationsReady else { errorLog.record(.linkEnvironment, error: EnvironmentError.invalidMetadata); return false }
         isBusy = true; defer { isBusy = false }
         do {
             associations = try await store.linkEnvironment(candidate, validator: validator).associations
@@ -402,7 +415,8 @@ final class ProfileManager: ObservableObject {
         } catch { show(error); return false }
     }
     func disconnect(_ profile: AccountProfile) async {
-        guard !isBusy, associationsReady else { return }
+        guard ready(.linkEnvironment) else { return }
+        guard associationsReady else { errorLog.record(.linkEnvironment, error: EnvironmentError.invalidMetadata); return }
         isBusy = true; defer { isBusy = false }
         do {
             associations = try await store.disconnectEnvironment(profileID: profile.id).associations
@@ -420,7 +434,7 @@ final class ProfileManager: ObservableObject {
         } catch { connectionNotice = nil; connectionErrors.insert(profile.id); show(error) }
     }
     func recoverEnvironmentMetadata() async {
-        guard !isBusy else { return }
+        guard !isBusy else { errorLog.record(.other, error: ProfileError.storeBusy); return }
         isBusy = true; defer { isBusy = false }
         do {
             associations = try await store.recoverAssociationsBackup().associations
@@ -429,18 +443,18 @@ final class ProfileManager: ObservableObject {
     }
     func openingBlockedReason(for profile: AccountProfile, mode: AccountOpeningMode = .openSeparately) -> String? {
         if isBusy { return L10n.text("message.7bdf731db2") }
-        if needsOpeningReview { return L10n.text("review.previousOperation") }
+        if needsOpeningReview && mode == .closeOthersAndOpen { return L10n.text("review.previousOperation") }
         if !storageReady || !associationsReady { return L10n.text("message.92d6637423") }
         if association(for: profile) == nil { return L10n.text("message.0301e88b40") }
         if connectionErrors.contains(profile.id) { return L10n.text("message.cbdc541d36") }
-        if let reason = installationBlockedReason { return reason }
+        // Display detection may still be checking. The native driver validates installation before any effect.
         guard let association = association(for: profile), association.kind == .managed || association.kind == .standardExternal else {
             return L10n.text("message.f3a93ef749")
         }
         return nil
     }
     func startOpening(_ profile: AccountProfile, mode: AccountOpeningMode) {
-        guard operationTask == nil, !isBusy else { return }
+        guard operationTask == nil, !isBusy else { errorLog.record(.openProfile, error: ProfileError.storeBusy); return }
         operationTask = Task { [weak self] in
             guard let self else { return }
             await self.openProfile(profile, mode: mode)
@@ -449,19 +463,29 @@ final class ProfileManager: ObservableObject {
     }
     func cancelOpening() { operationTask?.cancel() }
     func openProfile(_ profile: AccountProfile, mode: AccountOpeningMode) async {
-        if let reason = openingBlockedReason(for: profile, mode: mode) { errorMessage = reason; return }
-        isBusy = true; openingReviewResolved = false; openingMode = mode; connectionNotice = nil; errorMessage = nil
+        if let reason = openingBlockedReason(for: profile, mode: mode) {
+            let failure: Error
+            if isBusy { failure = ProfileError.storeBusy }
+            else if needsOpeningReview && mode == .closeOthersAndOpen { failure = AccountOpeningError.recoveryRequired }
+            else if !storageReady || !associationsReady { failure = ProfileError.storageUnavailable }
+            else if association(for: profile) == nil { failure = EnvironmentError.missingAssociation }
+            else if connectionErrors.contains(profile.id) { failure = EnvironmentError.changedDirectory }
+            else { failure = EnvironmentError.incompatibleBuild }
+            errorLog.record(.openProfile, error: failure); errorMessage = reason; return
+        }
+        isBusy = true; openingReviewResolved = false; openingMode = mode; connectionNotice = nil; errorMessage = nil; offerManagedSignIn = false
         defer { isBusy = false; openingMode = nil }
         do {
             try await coordinator.openAccount(to: profile, mode: mode, environmentScoped: true,
-                confirmOpen: { await NativeSwitchingConfirmation.confirmOpening($0) },
+                confirmOpen: { _ in true },
                 confirmClose: { await NativeSwitchingConfirmation.confirmClose($0) })
             switch await coordinator.openingResult {
             case .activatedExisting: connectionNotice = L10n.text("opening.activated")
             case .launched: connectionNotice = L10n.text("opening.launched")
-            case nil: errorMessage = L10n.text("opening.noResult")
+            case nil: errorLog.record(.openProfile, error: SwitchingError.verificationFailed); errorMessage = L10n.text("opening.noResult")
             }
         } catch {
+            errorLog.record(.openProfile, error: error)
             let disposition = await coordinator.openingDisposition
             needsOpeningReview = await coordinator.state == .recoveryRequired
             let closed = await coordinator.openingProgress.closedInstanceNames
@@ -479,7 +503,8 @@ final class ProfileManager: ObservableObject {
     }
 
     func reviewOpeningResult() async {
-        guard !isBusy, needsOpeningReview else { return }
+        guard !isBusy else { errorLog.record(.reviewOperation, error: ProfileError.storeBusy); return }
+        guard needsOpeningReview else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = L10n.text("review.title")
@@ -503,7 +528,7 @@ final class ProfileManager: ObservableObject {
     }
 
     private func update(_ operation: () async throws -> ProfileCatalog) async -> Bool {
-        guard !isBusy, !needsOpeningReview else { return false }
+        guard ready(.editProfile, requireStorage: false) else { return false }
         isBusy = true
         defer { isBusy = false }
         do {
@@ -521,7 +546,21 @@ final class ProfileManager: ObservableObject {
         }
     }
 
-    func show(_ error: Error) {
+    private func ready(_ action: ActionErrorLog.Action, requireStorage: Bool = true, requireResolvedOpening: Bool = true) -> Bool {
+        if isBusy { errorLog.record(action, error: ProfileError.storeBusy); return false }
+        if requireResolvedOpening && needsOpeningReview { errorLog.record(action, error: AccountOpeningError.recoveryRequired); return false }
+        if requireStorage && !storageReady { errorLog.record(action, error: ProfileError.storageUnavailable); return false }
+        return true
+    }
+    func openErrorLog() {
+        do {
+            let url = try errorLog.fileForViewing()
+            guard !isTestStorage else { return }
+            if !NSWorkspace.shared.open(url) { errorLog.record(.openLog, error: ProfileError.storageUnavailable) }
+        } catch { errorLog.record(.openLog, error: error) }
+    }
+    func show(_ error: Error, action: ActionErrorLog.Action = .other) {
+        errorLog.record(action, error: error)
         if error is OpeningJournalError { needsOpeningReview = true; openingReviewErrorProvider = { (error as? OpeningJournalError)?.errorDescription ?? L10n.text("review.journalDetail") } }
         lastErrorProvider = {
             if let description = (error as? ProfileError)?.errorDescription { return description }
@@ -545,6 +584,7 @@ final class ProfileManager: ObservableObject {
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url, let self else { return }
             guard let installation = CodexDetector().inspect(url) else {
+                self.errorLog.record(.installation, error: EnvironmentError.codexNotInstalled)
                 self.errorMessage = L10n.text("message.abc04aa349")
                 return
             }
@@ -567,6 +607,7 @@ final class ProfileManager: ObservableObject {
             refreshLoginStatus()
             if enabled && !loginEnabled && !loginNeedsApproval { loginError = L10n.text("onboarding.login.failed") }
         } catch {
+            errorLog.record(.login, error: error)
             refreshLoginStatus()
             loginError = L10n.text("onboarding.login.failed")
             let failure = error as NSError

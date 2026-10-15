@@ -79,6 +79,11 @@
     "ru": "Очистить сохранённые аккаунты…",
     "uz-Latn": "Saqlangan hisoblarni tozalash…"
   },
+  "settings.openErrorLog": {
+    "en": "Open error log",
+    "ru": "Открыть журнал ошибок",
+    "uz-Latn": "Xatolar jurnalini ochish"
+  },
   "settings.diagnostics": {
     "en": "Permissions & Diagnostics",
     "ru": "Разрешения и диагностика",

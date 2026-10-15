@@ -121,8 +121,7 @@ struct MenuBarView: View {
                                     NativeAccountMenu(title: profile.name, label: L10n.text("menu.open", profile.name),
                                         value: L10n.text(manager.connectionErrors.contains(profile.id) ? "menu.environmentError" : (manager.association(for: profile) == nil ? "menu.notLinked" : "onboarding.linked")),
                                         activation: menuActivations[.profile(profile.id), default: 0], items: AccountOpeningMode.allCases.map { mode in
-                                            AccountMenuItem(title: mode.title, enabled: manager.openingBlockedReason(for: profile, mode: mode) == nil,
-                                                hint: manager.openingBlockedReason(for: profile, mode: mode) ?? mode.subtitle) {
+                                            AccountMenuItem(title: mode.title, hint: mode.subtitle) {
                                                 manager.startOpening(profile, mode: mode)
                                             }
                                         }).frame(maxWidth: .infinity, alignment: .leading)
@@ -154,29 +153,15 @@ struct MenuBarView: View {
                     }
             }
             Button { editor = Editor(profile: nil) } label: { Label(L10n.text("menu.add"), systemImage: "plus") }
-                .buttonStyle(.bordered).keyboardShortcut("n").disabled(!manager.storageReady || manager.isBusy)
+                .buttonStyle(.bordered).keyboardShortcut("n")
                 .focusable().focused($focused, equals: .add)
                 .onKeyPress(.space) {
-                    guard manager.storageReady, !manager.isBusy else { return .ignored }
                     editor = Editor(profile: nil); return .handled
                 }
                 .accessibilityHint(L10n.text("onboarding.addHint"))
             if manager.installationBlockedReason != nil { CodexAvailabilityView(manager: manager) }
-            if manager.needsOpeningReview || manager.errorMessage != nil {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.circle").foregroundStyle(.orange).accessibilityHidden(true)
-                        Text(manager.friendlyError).font(.caption).fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                        Button(L10n.text("menu.details")) { manager.openSettings(diagnostics: true) }.buttonStyle(.link)
-                    }
-                    if manager.needsOpeningReview {
-                        Button(L10n.text("menu.review")) { Task { await manager.reviewOpeningResult() } }
-                            .disabled(manager.isBusy).accessibilityIdentifier("review-opening-result")
-                    }
-                }.accessibilityElement(children: .contain)
-            } else if manager.connectionNotice != nil {
-                Label(L10n.text(manager.openingReviewResolved ? "review.resolved" : (manager.offerManagedSignIn ? "message.7fcd27f57c" : "menu.done")), systemImage: "checkmark.circle")
+            if let notice = manager.connectionNotice, manager.errorMessage == nil {
+                Label(notice, systemImage: "checkmark.circle")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if manager.openingMode != nil {
@@ -200,9 +185,9 @@ struct MenuBarView: View {
     private func managementItems(_ profile: AccountProfile) -> [AccountMenuItem] {
         var items: [AccountMenuItem] = []
         if manager.association(for: profile) == nil {
-            items.append(AccountMenuItem(title: L10n.text("menu.connect"), enabled: manager.associationsReady) { connectionProfile = profile })
+            items.append(AccountMenuItem(title: L10n.text("menu.connect")) { connectionProfile = profile })
             if !manager.preparedEnvironments.contains(where: { $0.profileID == profile.id }) {
-                items.append(AccountMenuItem(title: L10n.text("menu.prepare"), enabled: manager.managedStorageReady) { Task { await manager.prepareManagedEnvironment(profile) } })
+                items.append(AccountMenuItem(title: L10n.text("menu.prepare")) { Task { await manager.prepareManagedEnvironment(profile) } })
             }
         } else {
             items.append(AccountMenuItem(title: L10n.text("menu.recheck")) { manager.checkConnection(profile) })
@@ -232,7 +217,7 @@ struct MenuBarView: View {
 
 }
 
-/// Real NSPopUpButton keeps native Space/Return/arrows/Escape and menu-item disabled semantics.
+/// Real NSPopUpButton keeps native Space/Return/arrows/Escape. Actions validate when selected.
 /// SwiftUI Menu's extra focus surface did not dispatch Space in the logged-in keyboard audit.
 @MainActor private struct AccountMenuItem {
     let title: String
@@ -271,9 +256,6 @@ struct MenuBarView: View {
             let update = pendingUpdate; pendingUpdate = nil
             DispatchQueue.main.async { update?() }
         }
-        @objc func selectedAccountItem(_ sender: NSPopUpButton) {
-            (sender.selectedItem as? AccountActionMenuItem)?.invokeAccountAction(sender)
-        }
     }
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSPopUpButton {
@@ -306,7 +288,8 @@ struct MenuBarView: View {
             menu.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: ""))
             for item in items {
                 if item.action == nil { menu.addItem(.separator()); continue }
-                let entry = AccountActionMenuItem(title: item.title, action: nil, keyEquivalent: "")
+                let entry = AccountActionMenuItem(title: item.title, action: #selector(AccountActionMenuItem.invokeAccountAction(_:)), keyEquivalent: "")
+                entry.target = entry
                 entry.handler = item.action; entry.isEnabled = item.enabled; entry.toolTip = item.hint
                 menu.addItem(entry)
             }
@@ -316,8 +299,8 @@ struct MenuBarView: View {
                 (entry as? AccountActionMenuItem)?.handler = item.action
             }
         }
-        button.target = coordinator
-        button.action = #selector(Coordinator.selectedAccountItem(_:))
+        button.target = nil
+        button.action = nil
         button.toolTip = title
         let display = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         display.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
@@ -351,14 +334,16 @@ struct MenuBarView: View {
         menu.autoenablesItems = false
         menu.addItem(NSMenuItem(title: "Fixture", action: nil, keyEquivalent: "")); menu.addItem(replacement)
         let coordinator = NativeAccountMenu.Coordinator()
-        button.menu = menu; button.target = coordinator; button.action = #selector(NativeAccountMenu.Coordinator.selectedAccountItem(_:))
-        button.selectItem(at: 1)
-        precondition(NSApplication.shared.sendAction(button.action!, to: button.target, from: button))
-        precondition(invoked == 12, "Popup control must route the selected menu item")
+        button.menu = menu
+        menu.performActionForItem(at: 1)
+        precondition(invoked == 12, "The menu item must dispatch its own action")
         let original = NativeAccountMenu(title: "Fixture", label: "Fixture", activation: 0,
             items: [AccountMenuItem(title: "Original", action: { invoked += 100 })])
         original.configure(button, coordinator: coordinator)
         let tracking = button.menu!
+        precondition(button.action == nil, "The popup must not dispatch a second action")
+        tracking.performActionForItem(at: 1)
+        precondition(invoked == 112, "The actual configured item must dispatch exactly once")
         coordinator.menuWillOpen(tracking)
         let changed = NativeAccountMenu(title: "Fixture", label: "Fixture", activation: 0,
             items: [AccountMenuItem(title: "Changed", action: { invoked += 200 })])
@@ -395,7 +380,6 @@ struct CodexAvailabilityView: View {
                             .accessibilityHint(L10n.text("onboarding.downloadHint"))
                     } else {
                         Button(L10n.text("onboarding.checkAgain")) { manager.refreshDetection() }
-                            .disabled(manager.codexAvailability == .checking)
                     }
                 }.controlSize(.small)
             }
@@ -436,7 +420,7 @@ private struct ConnectionEditor: View {
                     message = nil
                 } catch {
                     candidate = nil
-                    message = (error as? EnvironmentError)?.errorDescription ?? L10n.text("message.c15cdd6496")
+                    manager.show(error, action: .linkEnvironment)
                 }
             }
             if let candidate {
@@ -447,17 +431,15 @@ private struct ConnectionEditor: View {
                 Text(L10n.text("message.5638c9c401"))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            if let message { Text(message).font(.caption).foregroundStyle(.red) }
             HStack {
                 Button(L10n.text("common.cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
                 Button(L10n.text("message.60100daa61")) {
-                    guard let candidate else { return }
-                    Task {
-                        if await manager.link(candidate) { dismiss() }
-                        else { message = manager.errorMessage }
-                    }
-                }.disabled(candidate == nil || manager.isBusy).keyboardShortcut(.defaultAction)
+                    do {
+                        let reference = try candidate ?? manager.makeAssociation(for: profile, current: useCurrent, directory: directory)
+                        Task { if await manager.link(reference) { dismiss() } }
+                    } catch { manager.show(error, action: .linkEnvironment) }
+                }.keyboardShortcut(.defaultAction)
             }
         }.padding(20).frame(width: 380)
     }
@@ -534,8 +516,6 @@ struct ProfileEditor: View {
         self._method = SwiftUI.State(initialValue: managed ? .another : .existing)
     }
 
-    private var validName: Bool { (try? AccountProfile.validatedName(name)) != nil }
-    private var blockedReason: String? { profile == nil ? manager.addAccountBlockedReason(managed: method == .another) : nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -544,10 +524,10 @@ struct ProfileEditor: View {
                 VStack(spacing: 8) {
                     ForEach(AddAccountMethod.allCases, id: \.self) { choice in
                         AccountMethodCard(method: choice, selected: method == choice) {
-                            method = choice; attempted = false
+                            method = choice
                         }
                     }
-                }.disabled(manager.isBusy)
+                }
             }
             if profile == nil && (manager.installationBlockedReason != nil || manager.installationCompatibilityNotice != nil) { CodexAvailabilityView(manager: manager) }
             VStack(alignment: .leading, spacing: 5) {
@@ -555,26 +535,20 @@ struct ProfileEditor: View {
                 TextField(L10n.text("account.namePlaceholder"), text: $name).textFieldStyle(.roundedBorder)
                     .focused($nameFocused).accessibilityLabel(L10n.text("account.profileName"))
                     .accessibilityIdentifier("add-account-name").accessibilityHint(L10n.text("account.nameHint")).onSubmit { save() }
-                    .disabled(manager.isBusy)
                 Text(L10n.text("account.nameHint")).font(.caption).foregroundStyle(.secondary)
             }
-            if !name.isEmpty && !validName {
-                Text(ProfileError.invalidName.errorDescription ?? L10n.text("message.f04d8455dd"))
-                    .font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
-            }
-            if let blockedReason, manager.installationBlockedReason == nil {
-                Text(blockedReason).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            } else if attempted, let message = manager.errorMessage {
-                Label(L10n.text("onboarding.actionFailed"), systemImage: "exclamationmark.circle")
-                    .font(.caption).fixedSize(horizontal: false, vertical: true)
-                DisclosureGroup(L10n.text("menu.details")) { Text(message).font(.caption).textSelection(.enabled) }
+            if attempted && manager.errorMessage != nil {
+                HStack {
+                    Text(L10n.text("onboarding.actionFailed")).font(.caption).foregroundStyle(.secondary)
+                    Button(L10n.text("settings.openErrorLog")) { manager.openErrorLog() }.buttonStyle(.link)
+                }
             }
             HStack {
-                Button(L10n.text("common.cancel")) { dismiss() }.keyboardShortcut(.cancelAction).disabled(manager.isBusy)
+                Button(L10n.text("common.cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
                 if manager.isBusy { ProgressView().controlSize(.small) }
                 Button(L10n.text(profile == nil ? "account.continue" : "common.save")) { save() }
-                    .keyboardShortcut(.defaultAction).disabled(!validName || manager.isBusy || blockedReason != nil)
+                    .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("add-account-continue")
             }
         }.padding(20).frame(width: 400)
@@ -583,8 +557,9 @@ struct ProfileEditor: View {
     }
 
     private func save() {
-        guard validName, !manager.isBusy, blockedReason == nil else { return }
         attempted = true
+        do { _ = try AccountProfile.validatedName(name) }
+        catch { manager.show(error, action: .editProfile); nameFocused = true; return }
         let submittedName = name
         let managed = method == .another
         Task {

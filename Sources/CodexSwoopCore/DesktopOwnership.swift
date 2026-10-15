@@ -30,7 +30,7 @@ public enum DesktopOwnership {
         func lineage(_ rows: [Int32: DesktopProcessEvidence], _ main: Int32) -> Set<Int32> {
             var members: Set<Int32> = [main]
             while true {
-                let next = members.union(rows.values.filter { members.contains($0.parent) }.map { $0.generation.pid })
+                let next = members.union(rows.values.filter { $0.role != .external && members.contains($0.parent) }.map { $0.generation.pid })
                 if next == members { return members }; members = next
             }
         }

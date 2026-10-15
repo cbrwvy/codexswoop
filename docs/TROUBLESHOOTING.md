@@ -41,3 +41,7 @@ Live Codex usage limits are not supported by the current version. CodexSwoop doe
 ## Still stuck?
 
 Include your macOS version, CodexSwoop version, the exact on-screen message, and steps to reproduce. Use fictional profile names and redact paths or other personal details. Never share tokens, cookies, authorization files, or account data. See [SECURITY.md](SECURITY.md) for security reporting guidance.
+
+## A button appears to do nothing
+
+Open **Settings → Diagnostics → Open error log**. CodexSwoop stores the latest 500 timestamped action/error codes in `~/Library/Logs/CodexSwoop/errors.log`, without account data or raw error payloads. Add Account and Open Separately validate when clicked. An older opening record remains available for review and does not block these actions; concurrent operations and invalid storage or ownership evidence still fail safely.
